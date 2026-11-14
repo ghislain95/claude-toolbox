@@ -20,7 +20,8 @@
 # refuses the merge if the head moves); the newest `merge-conditions` status of that commit was
 # posted by its workflow (github-actions[bot]) and is success with `gates: none`; the `base <sha7>`
 # it judged against is the default branch's current head; no other pull request carries the
-# `in-flight` label (issues API, every page). Any failed or late query, or no gh, blocks.
+# `in-flight` label (issues API, every page); no open issue carries `deploy-refused` (a deploy the
+# deploy guard refused, not resolved yet). Any failed or late query, or no gh, blocks.
 # The branch is the one checked out where the command really runs: the tool call's cwd, then each
 # `cd`/`pushd`/`popd` and `git -C <dir>` (subshells restore the directory), and a
 # `git switch|checkout <branch>` earlier in the same command — to main at once, to another branch
@@ -103,6 +104,8 @@ MERGE_METHOD=$(conf MERGE_METHOD); ALLOW_FORCE_WITH_LEASE=$(conf ALLOW_FORCE_WIT
 # The labels and statuses the merge route reads (dev-factory: merge-conditions.yml, delivery steps).
 STATUS_CONTEXT=merge-conditions
 IN_FLIGHT_LABEL=in-flight
+# Put by .github/workflows/deploy-alert.yml on the issue it opens when the deploy guard refuses a commit.
+DEPLOY_REFUSED_LABEL=deploy-refused
 # Seconds all the merge route's GitHub queries together may take before the merge is blocked. It
 # stays well under the hook's timeout in .claude/settings.json (120 s): a hook that times out does
 # not block the call.
@@ -769,6 +772,14 @@ verify_merge() {
     'if all(.[]; type == "array") then add // [] | [.[] | select(.pull_request != null and .number != $n) | "#\(.number)"] | join(" ") else error("not a list") end' 2>/dev/null) \
     || fail_closed "the pull requests in flight"
   [ -z "$others" ] || block "another change is in flight ($others carries the $IN_FLIGHT_LABEL label): wait until it is verified in production or rolled back"
+  # A refused deploy left on the default branch would ship with the next merge: no agent merge while
+  # its issue is open (the owner resolves it and closes the issue).
+  out=$(gh_query "$dir" api --paginate "repos/$slug/issues?labels=$DEPLOY_REFUSED_LABEL&state=open&per_page=100") \
+    || fail_closed "the open deploy refusals"
+  others=$(printf '%s' "$out" | jq -rs \
+    'if all(.[]; type == "array") then add // [] | [.[] | "#\(.number)"] | join(" ") else error("not a list") end' 2>/dev/null) \
+    || fail_closed "the open deploy refusals"
+  [ -z "$others" ] || block "a refused deploy is not resolved ($others carries the $DEPLOY_REFUSED_LABEL label): revert it exactly through a pull request, or have the owner set the reset variable (OPENSPEC_GUIDE §8), then close the issue; no agent merge until then"
 }
 
 # A command that merges a pull request does nothing else that writes: the merge is verified against

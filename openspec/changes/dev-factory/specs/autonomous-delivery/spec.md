@@ -63,10 +63,16 @@ the go or the passed QA.
 - **THEN** the merge is refused
 
 ### Requirement: Deploy guard
-Every deploy target SHALL refuse to deploy a commit of the protected branch that does not come from a
-merged pull request meeting the merge conditions. The guard SHALL run server-side, in the deploy
-pipeline itself, and SHALL recompute the verdict from the merged pull request rather than read the
-`merge-conditions` status, which a workflow of the pull request or the agent's token can overwrite.
+Every deploy target SHALL refuse to deploy a commit of the protected branch unless that commit and
+every first-parent commit since the target's last deployment came from a merged pull request whose
+merge commit is exactly the merge of the pull request, with every trigger hit accounted for and the
+CI the pull request needed green, a refused commit counting only once a later merged commit undoes
+it exactly. The guard SHALL run server-side, in the deploy pipeline itself, with its code read from
+the last deployed commit (or the protected branch before the push), never from the pushed commit,
+and SHALL recompute the verdict rather than read the `merge-conditions` status, which a workflow of
+the pull request or the agent's token can overwrite. The owner's gates SHALL NOT be part of the
+guard: while the agent acts with the owner's identity, an owner merge and an agent merge cannot be
+told apart server-side, and the gates are enforced client-side by the merge route.
 
 #### Scenario: Commit pushed to main by mistake
 - **WHEN** a commit reaches the protected branch without a merged pull request
@@ -75,6 +81,14 @@ pipeline itself, and SHALL recompute the verdict from the merged pull request ra
 #### Scenario: Owner merges a gated change
 - **WHEN** the owner merges a pull request with an open gate whose `merge-conditions` is otherwise green
 - **THEN** the deploy targets deploy it
+
+#### Scenario: Merge on top of a refused commit
+- **WHEN** a pull request is merged properly on top of a commit the guard refused, and no merged commit undid that commit
+- **THEN** no deploy target deploys the merge, and the owner is alerted
+
+#### Scenario: A gated change merged with the agent's token
+- **WHEN** a pull request with an open gate is merged with the token the agent uses, its merge conditions otherwise met
+- **THEN** the deploy targets deploy it: the guard does not enforce the gates, only the merge route does
 
 ### Requirement: Protection scope is stated
 The project's documentation SHALL state that merge protection is client-side and guards against

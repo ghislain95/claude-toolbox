@@ -56,23 +56,33 @@ contract handed from one agent to the next.
 5. commit            ← by the agent, one per task group, on the change branch (docs/CONTRIBUTING.md §2)
 6. review-harness    ← every review angle on the commits, code-reviewer included (mandatory, before verify)
 7. /opsx:verify      ← implementation vs specs, tasks ticked
+<!-- sdd:if github -->
+8. PR 1 + merge      ← the agent opens the change's PR; it merges only through the verified route
+                       (merge-conditions success, gates: none, checked by the hook on GitHub) and
+                       labels it in-flight in the same command; an open gate → the owner merges,
+                       the agent then labels it
+9. verification      ← the session that merged: probes of .sdd/deployment.yaml + the change's checks,
+                       until the next run of each scheduled job the diff touches; failed → platform
+                       rollback, revert PR (revert/<id>), alert to the owner, fix change
+10. PR 2 (archive)   ← <type>/<id>-archive: /opsx:archive, post-archive (roadmap, doc-writer — docs/
+                       does not contradict the merged specs; glossary — or "no doc impact", `## Purpose`
+                       of the touched specs, fixed by the session that archives<!-- sdd:if graphify -->, graph refresh<!-- sdd:endif -->),
+                       commit chore(<id>), merged like PR 1; then the final report to the owner
+<!-- sdd:endif -->
+<!-- sdd:if !github -->
 8. /opsx:archive     ← deltas merged into openspec/specs/
 9. post-archive      ← roadmap, doc-writer (docs/ does not contradict the merged specs;
                        glossary) or "no doc impact", `## Purpose` of the touched specs
                        (fixed by the session that archives)<!-- sdd:if graphify -->, graph refresh<!-- sdd:endif -->;
                        commit chore(<id>)
-<!-- sdd:if github -->
-10. PR + merge       ← the agent opens the PR; it merges only through the verified route
-                       (merge-conditions success, gates: none, checked by the hook on GitHub);
-                       an open gate → the owner merges
-<!-- sdd:endif -->
-<!-- sdd:if !github -->
 10. push + merge     ← a human (the agent never pushes)
 <!-- sdd:endif -->
 ```
 
-The reference cycle is in [`CLAUDE.md` §3](CLAUDE.md); `/opsx:archive` only happens **after**
-the implementation commit, and the merge only after the archive.
+The reference cycle is in [`CLAUDE.md` §3](CLAUDE.md)<!-- sdd:if github -->; the specs only receive behaviour verified in
+production: `/opsx:archive` happens in a second pull request, after the post-deploy verification of
+the first ([`docs/OPENSPEC_GUIDE.md`](docs/OPENSPEC_GUIDE.md) §8)<!-- sdd:endif --><!-- sdd:if !github -->; `/opsx:archive` only happens **after**
+the implementation commit, and the merge only after the archive<!-- sdd:endif -->.
 
 At each step, the context is handed over through the previous agent's result (short summary + file paths).
 

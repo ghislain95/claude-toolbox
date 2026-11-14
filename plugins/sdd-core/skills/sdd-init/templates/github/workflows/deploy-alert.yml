@@ -1,0 +1,135 @@
+# sdd:note: generated with the `github` option when .sdd/deployment.yaml lists at least one target (not with deploys_nothing: true). Copied as is apart from the default branch.
+# Deploy alert — runs the deploy guard on every push to {{DEFAULT_BRANCH}} and opens an issue when it
+# refuses the commit.
+#
+# A platform that deploys outside GitHub Actions (Vercel's ignored build step) only skips a refused
+# build, silently; a GitHub Actions deploy fails its job. This workflow is the one alert for every
+# target: the issue, labelled `deploy-refused`, names the commit and the guard's reason. While such
+# an issue is open the merge route refuses every agent merge: a refused commit stays on
+# {{DEFAULT_BRANCH}}, so the owner resolves it — a pull request that reverts it exactly (the guard then
+# accepts the history), or the reset variable DEPLOY_GUARD_RESET_<TARGET> (docs/OPENSPEC_GUIDE.md §8) —
+# and closes the issue. The adoption merge (the guard not installed before
+# it) gets an issue worded as expected, without the label.
+# It deploys nothing and has no path filter, so a direct push of any file is reported. Like the deploy
+# jobs, it runs the guard of the last commit it judged successfully (else of `before`), never the
+# pushed one's.
+name: Deploy alert
+
+on:
+  push:
+    branches: [ '{{DEFAULT_BRANCH}}' ]
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+  issues: write
+
+concurrency:
+  group: deploy-alert
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Deploy guard
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGED_SHA: ${{ github.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          DEPLOY_GUARD_VERDICT: ${{ runner.temp }}/verdict.json
+          # The owner's reset for this workflow (docs/OPENSPEC_GUIDE.md §8).
+          DEPLOY_GUARD_RESET: ${{ vars.DEPLOY_GUARD_RESET_DEPLOY_ALERT }}
+        run: |
+          set -uo pipefail
+          workflow=${GITHUB_WORKFLOW_REF%@*}
+          if ! last=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/${workflow##*/}/runs?branch=$DEFAULT_BRANCH&status=success&per_page=1" \
+               --jq '.workflow_runs[0].head_sha // ""'); then
+            echo "deploy-guard: cannot judge: the last successful run of this workflow is unknown"
+            echo "code=2" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          on_line() {  # a commit of the pushed commit's first-parent line that carries the guard
+            [ -n "$1" ] && git merge-base --is-ancestor "$1" "$MERGED_SHA" 2>/dev/null \
+              && git rev-list --first-parent "$MERGED_SHA" | grep -x "$1" > /dev/null \
+              && git cat-file -e "$1:.sdd/bin/deploy-guard.sh" 2>/dev/null
+          }
+          trusted=$BEFORE_SHA
+          if on_line "$last"; then trusted=$last; fi
+          if on_line "$DEPLOY_GUARD_RESET" && ! { on_line "$last" && git merge-base --is-ancestor "$DEPLOY_GUARD_RESET" "$last"; }; then
+            trusted=$DEPLOY_GUARD_RESET
+          fi
+          guard="$RUNNER_TEMP/deploy-guard.sh"
+          if ! git show "$trusted:.sdd/bin/deploy-guard.sh" > "$guard" 2>/dev/null; then
+            echo "deploy-guard: adoption: ${trusted:0:7} has no deploy guard yet"
+            echo "code=4" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # GitHub runs this with `bash -e`: keep the guard's exit code instead of stopping on it.
+          bash "$guard" "$MERGED_SHA" "$BEFORE_SHA" "$trusted" && code=0 || code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+      # The issue is written from the guard's JSON verdict, its reason with every control character
+      # and backtick replaced: a file name cannot forge lines, mentions or the code block.
+      - name: Open an issue when the guard refuses
+        if: steps.guard.outputs.code != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODE: ${{ steps.guard.outputs.code }}
+          MERGED_SHA: ${{ github.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          ACTOR: ${{ github.actor }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          DEPLOY_GUARD_VERDICT: ${{ runner.temp }}/verdict.json
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, re
+          code = int(os.environ["CODE"]) if os.environ["CODE"].isdigit() else 2
+          try:
+              with open(os.environ["DEPLOY_GUARD_VERDICT"], encoding="utf-8") as handle:
+                  reason = str(json.load(handle).get("reason", ""))
+          except (OSError, ValueError):
+              reason = "no verdict (see the run)"
+          reason = re.sub("[\x00-\x1f\x7f-\x9f\u2028\u2029`]", "?", reason)[:3000]
+          sha, branch = os.environ["MERGED_SHA"], os.environ["DEFAULT_BRANCH"]
+          actor = re.sub(r"[^A-Za-z0-9_.\[\]-]", "?", os.environ["ACTOR"])
+          head = (f"The deploy guard refused `{sha}`, pushed to `{branch}` by {actor} "
+                  f"(before: `{os.environ['BEFORE_SHA']}`).")
+          if code == 4:
+              title, label = f"Adoption merge {sha[:7]} on {branch}: not deployed (expected)", ""
+              advice = ("Expected: the deploy guard was not installed before this merge, so it deploys nothing. "
+                        "The next merge is the first one guarded; deploy this one by hand only after review.")
+          else:
+              title, label = f"Deploy refused: {sha[:7]} on {branch}", "deploy-refused"
+              advice = (f"No guarded target deployed it, and it is still on `{branch}`: every later deploy of a target "
+                        "whose paths it changes is refused until it is undone. Revert it exactly through a pull "
+                        "request, or have the owner set the reset variable (OPENSPEC_GUIDE §8), then close this "
+                        "issue. While this issue is open the agent merges nothing.")
+          body = f"{head}\n\n```text\n{reason}\n```\n\n{advice}\n\nRun: {os.environ['RUN_URL']}\n"
+          for name, text in (("issue.md", body), ("issue-title.txt", title), ("issue-label.txt", label)):
+              with open(name, "w", encoding="utf-8") as handle:
+                  handle.write(text)
+          PY
+          label=$(cat issue-label.txt)
+          if [ -n "$label" ]; then
+            gh label create "$label" --repo "$GITHUB_REPOSITORY" --color B60205 \
+              --description "A deploy the deploy guard refused, not resolved" --force > /dev/null || true
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$(cat issue-title.txt)" --body-file issue.md --label "$label"
+            exit 1
+          fi
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$(cat issue-title.txt)" --body-file issue.md

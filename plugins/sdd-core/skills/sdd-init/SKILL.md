@@ -91,7 +91,9 @@ Follow [`references/recon.md`](references/recon.md). Summary:
    5 to 10 observed architecture rules (with evidence), assumed domain risks, points "to confirm".
    They correct it; you only move on to phase 2 once they agree.
 6. **Options deduced, not asked**: `multi-module` (≥ 2 modules), `devops` (Docker, IaC or deployment
-   scripts — CI alone is not enough), `migrations` (VARIABLES §3), `github`, `ci`, `lean` (single
+   scripts — CI alone is not enough), `migrations` (VARIABLES §3), `deploys` (a push to the default
+   branch deploys something: a deploy workflow or a hosting configuration found by the recon,
+   `references/recon.md` "Deployment"), `github`, `ci`, `lean` (single
    module and < ~5,000 lines of code: `wc -l` on source files, tests and dependencies excluded).
    With `github`, also read the repository's merge settings for `{{MERGE_METHOD}}` (VARIABLES §1).
    Announce them at gate 1; the user can challenge them.
@@ -213,10 +215,42 @@ the choices the code cannot settle:
    files, public controllers), scheduled jobs and rollout scripts, paid quota; **intent** — the UI
    modules' sources, user-facing texts, and the backend code that decides what users see (scoring,
    ranking, classification rules). What could not be proven goes to the report as "to confirm".
-   `templates/sdd/bin/merge_conditions.py` and `test_merge_conditions.py` → `.sdd/bin/`, **copied
-   verbatim** (`chmod +x` both); with option `ci`, the generated `tooling.yml` runs the matcher's
-   tests on every change to `.sdd/`.
-7. Option `ui`: `templates/claude/launch.json` → `.claude/launch.json`, one configuration per UI
+   `templates/sdd/bin/merge_conditions.py`, `test_merge_conditions.py` and `deploy-guard.sh` →
+   `.sdd/bin/`, **copied verbatim** (`chmod +x` all three); with option `ci`, the generated
+   `tooling.yml` runs the matcher's and the deploy guard's tests on every change to `.sdd/`.
+7. **Deployment profile and deploy guard**: `templates/sdd/deployment.yaml` → `.sdd/deployment.yaml`,
+   from the recon's "Deployment" findings: option `deploys` → one target per deploy target (its
+   trigger = the deploy workflow's push path filter, or `every_push` for a platform that builds every
+   push, Vercel by default), its rollback command, its probes; otherwise `deploys_nothing: true`;
+   and every scheduled job that runs the repository's code. A value no file proves — typically the
+   rollback command — is written with `unconfirmed: true`, never guessed silently. Run
+   `python3 .sdd/bin/merge_conditions.py validate .sdd/deployment.yaml`: no error, and each
+   `unconfirmed:` line it prints goes to the report's "to confirm" list. Then, with options
+   `github` and `deploys`:
+   - each deploy workflow: the guard block of `templates/github/workflows/deploy.yml` (job-level
+     `concurrency: { group: deploy-${{ github.workflow }}, cancel-in-progress: false }`,
+     `workflow_dispatch`, checkout with `fetch-depth: 0` and `persist-credentials: false`, Python, the
+     "Deploy guard" step that reads the guard from the trusted commit, its values through `env:` —
+     `DEPLOY_GUARD_TARGET` set to the target's `name` and `DEPLOY_GUARD_RESET` to
+     `${{ vars.DEPLOY_GUARD_RESET_<NAME> }}`, the name upper-cased, every other character `_`)
+     merged at the top of the job that deploys, the project's own steps unchanged after it, and the
+     three read permissions added; a target without a workflow gets none (it is guarded by its
+     platform, below, or reported as unguarded);
+   - a Vercel target: `ignoreCommand` of `templates/vercel/vercel.json` added to the project's
+     `vercel.json` (in Vercel's root directory; a different existing `ignoreCommand` is shown to the
+     owner, never dropped silently), `{{VERCEL_PATHS}}` filled (VARIABLES §1); the report asks the
+     owner for the read-only `DEPLOY_GUARD_TOKEN` in Vercel (`docs/CONTRIBUTING.md`, "Deploy guard
+     access") and, once the adoption is merged, for one production redeploy without the Ignored
+     Build Step (until then the last production deployment has no guard, so every build is skipped);
+   - `templates/github/workflows/deploy-alert.yml` → `.github/workflows/deploy-alert.yml`;
+   - the `in-flight` label: `gh label create in-flight --description "Merged, not yet verified in
+     production"` (or the report asks the owner when the token cannot create labels);
+   - rebase merges: when the repository allows them (`gh api repos/{owner}/{repo} --jq
+     .allow_rebase_merge`), the report gives the owner the command that turns them off — the guard
+     refuses every "Rebase and merge" of several commits: `gh api -X PATCH repos/{owner}/{repo} -F
+     allow_rebase_merge=false` (an admin action: the owner runs it).
+   Run `actionlint` on every workflow written or changed when it is installed (otherwise say so).
+8. Option `ui`: `templates/claude/launch.json` → `.claude/launch.json`, one configuration per UI
    module, filled from the recon (the module's dev-server script: `runtimeExecutable`,
    `runtimeArgs`, `port`). It lets Claude's preview tools start and check the UI. Keep `autoPort:
    true` unless a backend's CORS configuration expects a fixed port (then a fixed port, and say why
@@ -227,11 +261,11 @@ the choices the code cannot settle:
 Everything must pass; otherwise fix it before delivering:
 
 ```bash
-grep -rnE '(^|[^$])\{\{[A-Z_]+\}\}|sdd:(fill|if|endif|each|endeach|note)' CLAUDE.md AGENTS.md .claude/agents .claude/hooks .claude/settings.json docs openspec/config.yaml .sdd .github .gitignore .worktreeinclude .graphifyignore 2>/dev/null   # empty
+grep -rnE '(^|[^$])\{\{[A-Z_]+\}\}|sdd:(fill|if|endif|each|endeach|note)' CLAUDE.md AGENTS.md .claude/agents .claude/hooks .claude/settings.json docs openspec/config.yaml .sdd .github .gitignore .worktreeinclude .graphifyignore $(find . -name vercel.json -not -path '*/node_modules/*') 2>/dev/null   # empty
 openspec validate --all
 bash .claude/hooks/block-git-writes.test.sh                      # ALL n CASES OK, whatever the settings (gh is stubbed)
-python3 .sdd/bin/test_merge_conditions.py                       # OK: the matcher works on this machine
-python3 .sdd/bin/merge_conditions.py validate .sdd/triggers.yaml # no output, exit 0
+python3 .sdd/bin/test_merge_conditions.py                       # OK: the matcher and the deploy guard work on this machine
+python3 .sdd/bin/merge_conditions.py validate .sdd/triggers.yaml .sdd/deployment.yaml   # exit 0; only `unconfirmed:` lines (into the report)
 python3 -c "import json; json.load(open('.claude/settings.json'))"
 # YAML: the first tool available
 for f in openspec/config.yaml .sdd/*.yaml .github/workflows/*.yml; do ruby -ryaml -e "YAML.load_file('$f')" 2>/dev/null || python3 -c "import yaml,sys; yaml.safe_load(open('$f'))" || echo "YAML KO: $f"; done
@@ -256,9 +290,14 @@ of the generated rules with the actual code (an unproven rule = 🔴 MAJOR). Fix
 3. **Final report** (structured):
    - **Done**: generated files, by phase.
    - **Decisions**: phase 2 choices.
-   - **Observed vs to confirm**: proven rules (count); list of "to confirm" items.
+   - **Observed vs to confirm**: proven rules (count); list of "to confirm" items, the deployment
+     profile's `unconfirmed` values first (each with the question to the owner, e.g. "how is the
+     api rolled back to the previous revision?").
    - **Baseline**: check commands and their result, with numbers.
    - **Expected from you**: create `.claude/settings.local.json` (gh token), re-read §5 of
-     `CLAUDE.md`, install the optional plugins chosen.
+     `CLAUDE.md`, install the optional plugins chosen; with a Vercel target, the read-only
+     `DEPLOY_GUARD_TOKEN` in Vercel's environment and the first production redeploy after the adoption;
+     the `in-flight` label if it could not be created; `allow_rebase_merge=false` when rebase merges
+     are allowed.
    - **Next step**: `/opsx:onboard` for a first guided cycle, or the first `baseline-<domain>`
      proposed, or `/opsx:new <id>` on the first ticket of `docs/ROADMAP.md`.

@@ -47,6 +47,7 @@ P_PR=repos/o/r/pulls/26
 P_STATUS="repos/o/r/commits/$HEAD_SHA/statuses?per_page=100"
 P_BRANCH=repos/o/r/branches/main
 P_INFLIGHT='repos/o/r/issues?labels=in-flight&state=all&per_page=100'
+P_REFUSED='repos/o/r/issues?labels=deploy-refused&state=open&per_page=100'
 BOT='github-actions[bot]'
 # fxset <fixture dir> <path> <answer>; fxfail <fixture dir> <path> [exit code]; fxsleep <dir> <path> <s>
 fxset() { printf '%s' "$3" > "$1/$(key "$2")"; }
@@ -71,6 +72,7 @@ fx() {
   fxset "$d" "$P_STATUS" "$(status_json success "gates: none; base ${BASE_SHA:0:7}")"
   fxset "$d" "$P_BRANCH" "{\"name\":\"main\",\"commit\":{\"sha\":\"$BASE_SHA\"}}"
   fxset "$d" "$P_INFLIGHT" '[]'
+  fxset "$d" "$P_REFUSED" '[]'
   printf '%s' "$d"
 }
 GH_FIXTURES=$(fx default)
@@ -525,8 +527,25 @@ tg 0 "$d" "gh pr merge 26 --merge $MH"
 d=$(fx in-flight-issue)
 fxset "$d" "$P_INFLIGHT" '[{"number":5,"state":"open"}]'
 tg 0 "$d" "gh pr merge 26 --merge $MH"
+# A refused deploy not resolved: an open issue labelled deploy-refused, on any page; closed ones are
+# not asked for (the query names state=open, and the stub answers that exact query only).
+d=$(fx deploy-refused)
+fxset "$d" "$P_REFUSED" '[{"number":40,"state":"open","title":"Deploy refused: abc1234 on main"}]'
+tg 2 "$d" "gh pr merge 26 --merge $MH" 'refused deploy is not resolved (#40'
+tg 2 "$d" "gh pr merge 26 --merge $MH" 'revert it exactly through a pull request, or have the owner set the reset variable (OPENSPEC_GUIDE §8)'
+d=$(fx deploy-refused-page-2)
+fxset "$d" "$P_REFUSED" '[]
+[{"number":41,"state":"open"}]'
+tg 2 "$d" "gh pr merge 26 --merge $MH" '#41'
+d=$(fx deploy-refused-not-a-list)
+fxset "$d" "$P_REFUSED" '{"message":"Resource not accessible by integration"}'
+tg 2 "$d" "gh pr merge 26 --merge $MH" 'fail closed'
+d=$(fx deploy-refused-other-query)
+fxset "$d" 'repos/o/r/issues?labels=deploy-refused&state=all&per_page=100' '[]'
+rm "$d/$(key "$P_REFUSED")"
+tg 2 "$d" "gh pr merge 26 --merge $MH" 'fail closed'
 # GitHub unreachable or answering garbage: fail closed.
-for p in repo-view "$P_PR" "$P_STATUS" "$P_BRANCH" "$P_INFLIGHT"; do
+for p in repo-view "$P_PR" "$P_STATUS" "$P_BRANCH" "$P_INFLIGHT" "$P_REFUSED"; do
   d=$(fx "fails-$(key "$p")"); fxfail "$d" "$p"
   tg 2 "$d" "gh pr merge 26 --merge $MH" 'fail closed'
   d=$(fx "garbage-$(key "$p")"); fxset "$d" "$p" 'not json {'

@@ -44,4 +44,4 @@ gate_machinery:
     - '**/.gitattributes'
     - .gitmodules
     - openspec/config.yaml
-    - vercel.json
+    - '**/vercel.json'

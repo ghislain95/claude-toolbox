@@ -1,0 +1,100 @@
+# sdd:note: not generated as a new workflow when the project already deploys from GitHub Actions: its guard (the `concurrency` block, `workflow_dispatch`, the checkout with full history and no persisted credentials, the Python setup and the "Deploy guard" step) is merged at the top of the deploy job of each workflow listed as a `workflow` in .sdd/deployment.yaml, the project's own steps kept after it. Generated as .github/workflows/deploy-<target>.yml only for a target that has no workflow yet. Option `github`.
+# Deploy <target> — on every push to {{DEFAULT_BRANCH}} under its paths (or by hand, on {{DEFAULT_BRANCH}}),
+# after the deploy guard.
+#
+# The deploy guard is the first step of the job that deploys. It lets the job go on only when the
+# pushed commit, and every first-parent commit since the last commit this workflow deployed, is the
+# merge of a pull request that meets the merge conditions — recomputed, never read from the
+# `merge-conditions` status. The guard's code is taken from that last deployed commit (else from the
+# default branch before the push), never from the pushed one, so a merge cannot rewrite the guard
+# that judges it. What still runs from the pushed commit is this workflow file itself: GitHub reads
+# it there. The agent's token has no `workflow` permission, so it cannot change it; a direct push by
+# the owner is not stopped (stated in docs/CONTRIBUTING.md, "What is enforced where").
+# A refused commit fails the job (GitHub notifies the owner; deploy-alert.yml opens an issue).
+#
+# Only the commits that change the target's trigger paths (DEPLOY_GUARD_TARGET, read from the trusted
+# commit's .sdd/deployment.yaml) are judged: a refused commit elsewhere does not block this target.
+# When a target is stuck anyway (a refused commit no longer exactly revertible, a guard bug, a renamed
+# workflow), the OWNER sets the repository variable DEPLOY_GUARD_RESET_<TARGET> to a reviewed commit of
+# {{DEFAULT_BRANCH}}: the guard is then read from it and judges only what came after it. Only the owner
+# can set repository variables — the agent's token has no Variables write. See docs/OPENSPEC_GUIDE.md §8.
+#
+# `concurrency: deploy-<workflow>` runs one deploy of this workflow at a time and never cancels a
+# running one. GitHub keeps at most one run WAITING per group: a third push arriving while one
+# deploys and one waits replaces the waiting run — its commit is still judged, as part of the history
+# the third run's guard checks since the last deployed commit.
+name: Deploy (<target>)
+
+on:
+  push:
+    branches: [ '{{DEFAULT_BRANCH}}' ]
+    # sdd:fill: the target's `trigger.paths` from .sdd/deployment.yaml (remove `paths` for `every_push`)
+    paths: [ 'api/**' ]
+  # A manual run deploys the head of {{DEFAULT_BRANCH}}, judged like a push (the guard refuses another ref).
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+  # sdd:fill: the permissions the project's deploy steps need on top of these (e.g. id-token: write for OIDC)
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-${{ github.workflow }}
+      cancel-in-progress: false
+    steps:
+      # The whole history (the guard judges every commit since the last deploy), without the
+      # checkout's persisted token: the guard fetches pull request heads with its own.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Python only: the guard installs PyYAML itself, hash-pinned, in a fresh virtual environment.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Values through the environment, never interpolated into the script. The guard is read from
+      # the trusted commit, never from the pushed one: the owner's reset commit if set, else the last
+      # one this workflow ran successfully on, else `before` — a candidate counts only when it is on the
+      # pushed commit's first-parent line (a commit of {{DEFAULT_BRANCH}}, not of a merged branch).
+      - name: Deploy guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGED_SHA: ${{ github.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          # sdd:fill: the target's `name` in .sdd/deployment.yaml, and its reset variable vars.DEPLOY_GUARD_RESET_<NAME> (upper-cased, every other character turned into `_`)
+          DEPLOY_GUARD_TARGET: api
+          DEPLOY_GUARD_RESET: ${{ vars.DEPLOY_GUARD_RESET_API }}
+        run: |
+          set -euo pipefail
+          on_line() {  # a commit of the pushed commit's first-parent line that carries the guard
+            [ -n "$1" ] && git merge-base --is-ancestor "$1" "$MERGED_SHA" 2>/dev/null \
+              && git rev-list --first-parent "$MERGED_SHA" | grep -x "$1" > /dev/null \
+              && git cat-file -e "$1:.sdd/bin/deploy-guard.sh" 2>/dev/null
+          }
+          workflow=${GITHUB_WORKFLOW_REF%@*}
+          last=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/${workflow##*/}/runs?branch=$DEFAULT_BRANCH&status=success&per_page=1" \
+            --jq '.workflow_runs[0].head_sha // ""')
+          trusted=${BEFORE_SHA:-$(git rev-parse "$MERGED_SHA^1")}
+          if on_line "$last"; then trusted=$last; fi
+          # The owner's reset (a repository variable: only the owner can set one) wins until a later
+          # deploy has gone past it.
+          if on_line "$DEPLOY_GUARD_RESET" && ! { on_line "$last" && git merge-base --is-ancestor "$DEPLOY_GUARD_RESET" "$last"; }; then
+            trusted=$DEPLOY_GUARD_RESET
+          fi
+          guard="$RUNNER_TEMP/deploy-guard.sh"
+          if ! git show "$trusted:.sdd/bin/deploy-guard.sh" > "$guard" 2>/dev/null; then
+            echo "deploy-guard: adoption: ${trusted:0:7} has no deploy guard yet: this push deploys nothing"
+            exit 4
+          fi
+          bash "$guard" "$MERGED_SHA" "${BEFORE_SHA:-}" "$trusted"
+
+      # sdd:fill: the project's deploy steps, unchanged, after the guard
+      - name: Deploy
+        run: echo "deploy <target> at $GITHUB_SHA"

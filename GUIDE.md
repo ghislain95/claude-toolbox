@@ -159,10 +159,16 @@ push to: then you push and merge), `ALLOW_FORCE_WITH_LEASE`. Projects set up wit
                            → commit feat(<id>) per task group on the feat/<id> branch
                            → review harness on the commits: every angle, verified findings, 3 rounds max
 /opsx:verify              does the implementation match the specs?
-/opsx:archive             the deltas are merged into openspec/specs/
+                           → PR 1, merged (by the agent when no gate is open) and labelled in-flight
+                           → post-deploy verification: deployment profile probes, scheduled jobs;
+                             failed → platform rollback, revert PR, alert, fix change
+/opsx:archive             PR 2 (<type>/<id>-archive): the deltas are merged into openspec/specs/
                            → post-archive: roadmap, doc impact, spec Purpose, graph
-                           → commit chore(<id>), PR
+                           → commit chore(<id>), merged like PR 1; final report to you
 ```
+
+(With a GitHub remote. Without one, the archive is committed on the change branch and a human
+merges.)
 
 You can just say "I want to be able to export invoices as CSV": the session routes to
 `product-owner` and starts the cycle. It always announces the chosen agent ("Routing → `architect`
@@ -214,12 +220,17 @@ never trusting the command line, within one 40-second deadline: the PR is open, 
 branch, and `<sha>` is its head (GitHub refuses the merge if the head moves); the newest
 `merge-conditions` status of **that commit** was posted by its workflow (`github-actions[bot]`) and is
 `success` with `gates: none`; the `base <sha7>` it was judged against is the current head of the
-default branch; no other PR carries the `in-flight` label. Otherwise it says why: an
+default branch; no other PR carries the `in-flight` label; no open issue carries `deploy-refused`.
+Otherwise it says why: an
 open gate → hand the merge to the owner; the default branch moved → wait for the re-judgement;
 pending → wait; another change in flight → wait until it is verified. If `gh` is missing or a query
 fails, the merge is blocked (fail closed). The route is client-side: it stops mistakes, not an agent
-that overwrites the status first; the server-side barrier is the deploy guard (coming), which
-recomputes the verdict instead of reading it.
+that overwrites the status first; the server-side barrier is the deploy guard
+(`.sdd/bin/deploy-guard.sh`, read from the last deployed commit, first step of each deploy job and
+Vercel's `ignoreCommand`), which recomputes the verdict instead of reading it and refuses any commit
+— the pushed one or any since the last deployment — that was not merged from a pull request meeting
+the conditions; `deploy-alert.yml` opens a `deploy-refused` issue for each refusal. It does not
+enforce the owner's gates: with the owner's token, owner and agent merges look the same.
 
 Known false positives: a `$(…)` that really runs a forbidden git command, even inside a commit
 message → use `git commit -F <file>`; `mkdir x && cd x && git commit` → two calls; a branch created

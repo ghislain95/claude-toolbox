@@ -16,8 +16,13 @@ How to publish a new version, and what users experience.
    uv run --with pyyaml python .sdd/bin/test_merge_conditions.py
    ```
    The same suites run in CI ([`tooling.yml`](.github/workflows/tooling.yml)), which also checks
-   that `.sdd/bin/` is byte-identical to `plugins/sdd-core/skills/sdd-init/templates/sdd/bin/`:
-   change the template, then copy it.
+   that `.sdd/bin/` is byte-identical to `plugins/sdd-core/skills/sdd-init/templates/sdd/bin/`
+   (`cmp` of the two Python files there; `TemplateCopyTest` of the matcher's suite compares every
+   file of the folder, `deploy-guard.sh` included, with its mode): change the template, then copy it.
+   **`deploy-guard.sh`'s entry interface is frozen** (`<merged> <before> <trusted>`, `--vercel
+   [globs]`, and `merge_conditions.py deploy-guard`'s options it uses): projects run the copy of their
+   last deployed commit, older than the workflow step or `ignoreCommand` that calls it, so a changed
+   interface refuses every deploy until the owner deploys by hand. Add, never rename or remove.
    For a template change, also dry-run `sdd-init` on a throwaway project (one module and several
    modules if the change concerns `multi-module`) and check that no `{{…}}` or `sdd:` marker is left.
 3. **Bump `version`** in `plugins/<plugin>/.claude-plugin/plugin.json` of every plugin you changed

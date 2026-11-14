@@ -4,8 +4,9 @@
 # git-guardrail    - .claude/hooks/block-git-writes.sh is the only thing keeping agents from
 #                    committing on or pushing a protected branch (when the remote has no server-side
 #                    branch protection). Its regression suite runs on every change to it.
-# merge-conditions - .sdd/bin/merge_conditions.py decides which gates a pull request opens; its tests,
-#                    and the validity of .sdd/triggers.yaml, are checked on every change to .sdd/.
+# merge-conditions - .sdd/bin/merge_conditions.py decides which gates a pull request opens and
+#                    .sdd/bin/deploy-guard.sh which commits deploy; their tests, and the validity of
+#                    .sdd/triggers.yaml and .sdd/deployment.yaml, are checked on every change to .sdd/.
 name: Tooling
 
 on:
@@ -42,7 +43,7 @@ jobs:
       - name: Install PyYAML
         run: pip install pyyaml==6.0.2
 
-      - name: Matcher tests and triggers file
+      - name: Matcher and deploy guard tests, triggers and deployment profile
         run: |
           python3 .sdd/bin/test_merge_conditions.py
-          python3 .sdd/bin/merge_conditions.py validate .sdd/triggers.yaml
+          python3 .sdd/bin/merge_conditions.py validate .sdd/triggers.yaml .sdd/deployment.yaml

@@ -1,6 +1,6 @@
 {
   "env": {
-    "GH_TOKEN": "<your own fine-grained token, limited to this repository: Contents RW, Pull requests RW, Issues R, Actions R, Commit statuses RW, Metadata R — set an expiry and renew it; never commit settings.local.json>"
+    "GH_TOKEN": "<your own fine-grained token, limited to this repository: Contents RW, Pull requests RW, Issues R, Actions R, Commit statuses RW, Metadata R, nothing else (no Workflows, no Variables write) — set an expiry and renew it; never commit settings.local.json>"
   },
   "permissions": {
     "allow": []

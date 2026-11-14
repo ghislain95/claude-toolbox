@@ -62,6 +62,14 @@ query `graphify query/explain/path` before grepping".
 ### Cross-cutting
 - CI: jobs, triggers, path filters, what they run.
 - Infra: Docker / compose, IaC, deployment scripts, environments.
+- Deployment (feeds `.sdd/deployment.yaml`): what a push to the default branch deploys — workflows on
+  `push` to it (their path filters, platform, the deploy command), hosting configuration
+  (`vercel.json` and Vercel's root directory, `netlify.toml`, `fly.toml`, `app.yaml`, cloudbuild
+  files), each with the file:line that proves it; how each target is rolled back to the previous
+  deployment without a rebuild (a script, a runbook, a documented command — none found: say so, it
+  becomes `unconfirmed`); health endpoints or smoke tests usable as probes; scheduled jobs that run
+  the repository's code (`on: schedule`, cron, Cloud Scheduler, IaC) with their schedule and the code
+  they run.
 - Existing docs: README, `docs/`, ADRs, CONTRIBUTING — what they say **and** where they contradict
   the code.
 - Git history: commit convention already in use (`git log --oneline -30`), branch naming, merge vs

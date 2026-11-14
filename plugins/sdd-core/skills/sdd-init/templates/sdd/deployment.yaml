@@ -1,0 +1,41 @@
+# sdd:note: generated as .sdd/deployment.yaml, always, from the recon of the deploy workflows (.github/workflows/*deploy*, `on: push` to the default branch), the hosting configuration (vercel.json, netlify.toml, fly.toml, app.yaml, Dockerfiles and cloudbuild files, IaC) and the scheduled jobs (`on: schedule`, cron, Cloud Scheduler, IaC). Keep exactly one of the two shapes below. Every value not proven by a file of the repository gets `unconfirmed: true`: the setup report lists them (`python3 .sdd/bin/merge_conditions.py validate .sdd/deployment.yaml` prints each one) and asks the owner. Never rewritten once it exists (adoption, --refresh).
+# Deployment profile of {{PROJECT_NAME}} — what merging into {{DEFAULT_BRANCH}} deploys, how to roll it
+# back, how to probe it, and which scheduled jobs run the merged code later.
+#
+# Read by the delivery steps (docs/OPENSPEC_GUIDE.md, "Delivery") and by the classification: a
+# scheduled job's code paths extend the verification window of a change that touches them. Schema:
+# docs/OPENSPEC_GUIDE.md §8; check: `python3 .sdd/bin/merge_conditions.py validate .sdd/deployment.yaml`.
+# This file is gate machinery: a pull request that edits it opens the irreversible gate.
+
+# sdd:if !deploys
+# Merging deploys nothing (a library, a tool, a project published by hand): no target, no rollback.
+deploys_nothing: true
+# sdd:endif
+# sdd:if deploys
+targets:
+  # sdd:fill: one entry per deploy target found by the recon, e.g. the shape below
+  - name: api                                          # short, unique
+    platform: cloud-run                                # cloud-run, vercel, fly, kubernetes, github-pages…
+    trigger: { paths: [ 'api/**' ] }                   # the workflow's push path filter, or { every_push: true }
+    workflow: .github/workflows/deploy-api.yml         # optional: the workflow that deploys it (its first step runs the deploy guard)
+    rollback:
+      # Back to the deployment that preceded the last merge, without rebuilding from source, with the
+      # permissions the agent has. Placeholders (<previous>) are resolved by the command in `note`.
+      command: gcloud run services update-traffic api --region europe-west1 --to-revisions=<previous>=100
+      note: "<previous> = the second line of: gcloud run revisions list --service api --region europe-west1 --format 'value(name)' --sort-by '~metadata.creationTimestamp' --limit 2"
+      unconfirmed: true                                # no evidence in the repository that this command works
+      # Vercel: `vercel rollback --yes` turns off the automatic production assignment; say in `note`
+      # how it is turned back on (`vercel promote <deployment url> --yes` once a fix is deployed).
+    probes:                                            # exit 0, and `expect` (a regex) found in the output when given
+      # The first probe asserts the target serves the merged commit ({sha}): a target that did not
+      # deploy it fails the verification. Vercel: the GitHub deployment status for {sha} (Production).
+      - command: gcloud run services describe api --region europe-west1 --format 'value(spec.template.spec.containers[0].image)'
+        expect: ':{sha}$'
+      - command: curl -fsS https://api.example.com/health
+        expect: '"status" *: *"UP"'
+# sdd:endif
+
+# Jobs that run the project's code after a merge, on a schedule. A change that touches `paths` is
+# verified only after the job's next run has succeeded (`probe`, when given, shows that run).
+scheduled_jobs:
+  # sdd:fill: one entry per scheduled job found by the recon, e.g. `- { name: nightly-etl, schedule: '0 3 * * * Europe/Paris', paths: [ 'etl/**' ], runs: 'Cloud Scheduler → Cloud Run job etl', probe: { command: "gcloud run jobs executions list --job etl --region europe-west1 --limit 1 --format 'value(status.succeededCount)'", expect: '^1$' } }`; none → replace this comment with `[]` on the key line
