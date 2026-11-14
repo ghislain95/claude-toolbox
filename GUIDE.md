@@ -64,9 +64,9 @@ In a Claude Code session (any folder):
 /plugin install sdd-core@claude-toolbox
 ```
 
-`sdd-core` declares `superpowers` (official marketplace) and `handoff` (this catalog) as dependencies:
-they are installed along with it, `superpowers` **only if the official marketplace is added** (first line, harmless if it already is). Without it,
-`sdd-core` installs but refuses to load. Check with `/plugin` that all three are enabled.
+`sdd-core` declares `superpowers` (official marketplace), `handoff` and `local-qa` (this catalog) as
+dependencies: they are installed along with it, `superpowers` **only if the official marketplace is added** (first line, harmless if it already is). Without it,
+`sdd-core` installs but refuses to load. Check with `/plugin` that all four are enabled.
 
 Then turn on auto-update for the kit — it is **off by default** for third-party marketplaces:
 `/plugin` → **Marketplaces** → `claude-toolbox` → **Enable auto-update** (see §6).
@@ -123,7 +123,11 @@ There is no project-wide autonomy level any more: **each pull request decides**.
 pushes and opens the PR. The `merge-conditions` check then says which gates the PR opens: with
 `gates: none` (and green CI, review harness and verify), the agent merges it itself; with an open
 gate (`intent`: your QA, `irreversible`: your go, `framing`: your approval, `unclassified`: a PR
-outside a change), it gives you the link and stops — **your merge is the QA or the go**.
+outside a change), it gives you the link and stops — **your merge is the QA or the go**. For an
+intent QA, the agent first prepares a local environment with `/local-qa:qa-prepare` (it reuses only
+what is compatible, starts the rest on free ports, never touches what other projects or agents run)
+and hands you a brief: the link, 3 to 6 gestures with their expected results, before/after captures.
+After your QA, `/local-qa:qa-prepare --cleanup` stops what it started, and only that.
 
 The hook enforces it: `gh pr merge <n> --<MERGE_METHOD> --match-head-commit <sha>`, alone in its
 command, is the only merge it lets through, and only after asking GitHub itself (see §5). Settings in `.claude/hooks/block-git-writes.conf`:
@@ -258,9 +262,17 @@ that is the cue for the project update below.
 A new version only reaches you when its `version` number changes: see [`CHANGELOG.md`](CHANGELOG.md).
 
 **Each project.** A plugin update does not touch the files already generated in your projects. In each installed
-project: `/sdd-core:sdd-init --refresh` (or the install prompt of the README again). It compares the generated files
-with the new version of the templates, applies what comes from the kit, **keeps your local
-changes**, and never touches the specs, the changes or the reverse-documentation.
+project: `/sdd-core:sdd-init --refresh` (or the install prompt of the README again). It merges each generated
+file three ways — the templates of the version your project was set up with (fetched from the
+toolbox's tag `sdd-core-v<version>`), your file, the new templates — so it applies what comes from the
+kit, **keeps your local changes**, and shows you any line both changed instead of choosing; it never
+touches the specs, the changes or the reverse-documentation. Without that tag (versions before 0.3.0)
+it compares two ways and keeps your version when in doubt.
+
+**A project with its own agent setup** (its own `CLAUDE.md` rules, agents, hooks) is adopted rather
+than overwritten: `sdd-init` first shows you a table — each existing file or section, the kit file it
+maps to, keep / merge / replace and why — and writes nothing before you approve it. Your language and
+your project-specific rules stay.
 
 ---
 

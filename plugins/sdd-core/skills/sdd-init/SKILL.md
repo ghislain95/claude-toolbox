@@ -16,7 +16,10 @@ guess.
 This folder (the "base directory" given when the skill is invoked) contains:
 - `templates/` — templates to fill in; the convention is in [`templates/VARIABLES.md`](templates/VARIABLES.md) (read it first);
 - `references/recon.md` — the reverse-documentation checklist;
-- `references/adoption.md` — projects that already have a `CLAUDE.md`, agents or OpenSpec, and the `--refresh` mode.
+- `references/adoption.md` — projects that already have a `CLAUDE.md`, agents or OpenSpec (adoption mode,
+  with its mapping table), and the `--refresh` mode;
+- `scripts/refresh_merge.py` — the three-way merge of `--refresh` (base fetched from the toolbox's tag of
+  the recorded version), with its tests `scripts/test_refresh_merge.py`.
 
 `$ARGUMENTS` contains `--refresh` → go straight to `references/adoption.md` §3.
 
@@ -31,6 +34,10 @@ This folder (the "base directory" given when the skill is invoked) contains:
    an architecture test or CI, propose that check (a backlog line in `docs/ROADMAP.md`) instead of
    only writing prose.
 4. **Nothing is overwritten without being read.** An existing target file → `references/adoption.md`.
+   A project with its own agent environment and no kit marker is set up in **adoption mode**: an
+   explicit mapping table (existing file or section → kit file or section → keep / merge / replace,
+   with the reason) is approved by the owner before the first write, and the project's language and
+   project-specific rules are kept.
 5. **Few, but right.** An agent, skill or section that doesn't serve this project is not generated
    (e.g. no `devops` agent without Docker or CI; no `full-stack-dev` with a single module).
 6. **Verify before concluding**: every check command written into a file has been run at least once
@@ -57,12 +64,17 @@ This folder (the "base directory" given when the skill is invoked) contains:
    | gh | `gh auth status` | `brew install gh` | with option `github` |
    | uv + graphify | `graphify --version` | `uv tool install "graphifyy[sql]"` | with option `graphify` |
 
-4. Companion plugins: ask the user to run `/plugin` and confirm that `superpowers` and `handoff` are
-   installed (the workflow relies on `systematic-debugging`, `verification-before-completion`,
-   `test-driven-development`, and the generated rules call `/handoff:passation`). If one is missing:
-   `/plugin install superpowers@claude-plugins-official`, `/plugin install handoff@claude-toolbox`.
-5. Files that already exist (`CLAUDE.md`, `AGENTS.md`, `.claude/agents/`, `.claude/settings.json`,
-   `openspec/`, `docs/`) → note them: they go through `references/adoption.md`.
+4. Companion plugins: ask the user to run `/plugin` and confirm that `superpowers`, `handoff` and
+   `local-qa` are installed (the workflow relies on `systematic-debugging`,
+   `verification-before-completion`, `test-driven-development`, and the generated rules call
+   `/handoff:passation` and `/local-qa:qa-prepare`). If one is missing:
+   `/plugin install superpowers@claude-plugins-official`, `/plugin install handoff@claude-toolbox`,
+   `/plugin install local-qa@claude-toolbox`.
+5. Files that already exist (`CLAUDE.md`, `.claude/CLAUDE.md`, `AGENTS.md`, `.claude/agents/`,
+   `.claude/hooks/`, `.claude/skills/`, `.claude/settings.json`, `openspec/`, `docs/`) → note them:
+   they go through `references/adoption.md`. Rules, agents or hooks of the project's own and no kit
+   marker → **adoption mode** (`references/adoption.md` §1): validation gate 1 moves to right after
+   phase 1's step 3 and carries the mapping table; nothing is written before the owner approves it.
 
 ## Phase 1 — Reverse-documentation (code first)
 
@@ -76,7 +88,9 @@ Follow [`references/recon.md`](references/recon.md). Summary:
    according to `recon.md` §3, every claim sourced `file:line`. You aggregate.
 3. **Baseline**: run each module's check commands. Red → record it as is ("the baseline is red: N
    failing tests"); **fix nothing** during the install.
-4. Write the reverse-documentation from the templates:
+4. Write the reverse-documentation from the templates (adoption mode: only once the mapping table is
+   approved, and only what the table marks `create` or `merge` — existing architecture docs the
+   table keeps are pointed to, not duplicated):
    - `docs/ARCHITECTURE.md` (`templates/docs/ARCHITECTURE.md`)
    - per module: `<module>/docs/CODING_RULES.md`, `MODULES.md`, `TESTING_STRATEGY.md`
      (`templates/module-docs/`) — single-module repo: straight into `docs/`
@@ -261,6 +275,7 @@ the choices the code cannot settle:
 Everything must pass; otherwise fix it before delivering:
 
 ```bash
+grep -rnE '^(<<<<<<<|\|\|\|\|\|\|\||>>>>>>>) ' CLAUDE.md .claude/CLAUDE.md AGENTS.md .claude/agents .claude/hooks docs openspec/config.yaml .github 2>/dev/null   # empty: no merge conflict left (--refresh)
 grep -rnE '(^|[^$])\{\{[A-Z_]+\}\}|sdd:(fill|if|endif|each|endeach|note)' CLAUDE.md AGENTS.md .claude/agents .claude/hooks .claude/settings.json docs openspec/config.yaml .sdd .github .gitignore .worktreeinclude .graphifyignore $(find . -name vercel.json -not -path '*/node_modules/*') 2>/dev/null   # empty
 openspec validate --all
 bash .claude/hooks/block-git-writes.test.sh                      # ALL n CASES OK, whatever the settings (gh is stubbed)

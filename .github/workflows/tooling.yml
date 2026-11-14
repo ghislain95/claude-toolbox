@@ -3,6 +3,7 @@
 #
 # git-guardrail      the guardrail template every project copies (block-git-writes.test.sh)
 # version-check      the sdd-core session hook that compares a project's marker with the plugin
+# plugin-scripts     the tests of the scripts plugins ship (sdd-init's refresh merge, local-qa)
 # merge-conditions   the matcher's tests, for the toolbox's own copy and the template, which must
 #                    stay identical (sdd-init copies the template verbatim)
 # plugin-manifests   `claude plugin validate` on the catalog and on each plugin
@@ -33,6 +34,16 @@ jobs:
       - uses: actions/checkout@v4
       - name: Version-check hook tests
         run: bash plugins/sdd-core/hooks/check-kit-version.test.sh
+
+  plugin-scripts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refresh three-way merge tests (sdd-init)
+        run: python3 plugins/sdd-core/skills/sdd-init/scripts/test_refresh_merge.py
+      - name: Local QA environment tests (local-qa)
+        run: python3 plugins/local-qa/skills/qa-prepare/scripts/test_qa_env.py
 
   merge-conditions:
     runs-on: ubuntu-latest

@@ -73,7 +73,9 @@ With the agent team (routing: [`CLAUDE.md`](../CLAUDE.md) §8, details: [`AGENTS
 4. **Verification** — `/sdd-core:review-harness <id>` (every review angle, findings adversarially
    verified, three fix rounds at most, report in `review.md`, commit status `review-harness`), then
    `/opsx:verify` (compliance with the deltas, tests actually run; when it passes, commit status
-   `opsx-verify` on the pushed head, [`CONTRIBUTING.md`](CONTRIBUTING.md) §2).
+   `opsx-verify` on the pushed head, [`CONTRIBUTING.md`](CONTRIBUTING.md) §2). Intent gate open (§7)
+   → `/local-qa:qa-prepare <id>`, the agent's QA, then the owner's on the brief it hands over;
+   `/local-qa:qa-prepare --cleanup` afterwards.
 <!-- sdd:if github -->
 5. **Delivery** — implementation commit(s) by the agent on the change branch (Conventional
    Commits, [`CONTRIBUTING.md`](CONTRIBUTING.md) §2), push, PR 1 and its merge — by the agent through
@@ -144,7 +146,13 @@ production. Both are YAML, both are checked by `python3 .sdd/bin/merge_condition
 
 - **Intent gate** — the change visibly alters a business gesture, a screen, what the product shows or
   how it feels, whatever the layer (a backend scoring rule that changes the colours on screen counts).
-  Open → the owner runs a short QA before merge.
+  Open → the owner runs a short QA before merge, one per change, locally: the agent prepares it with
+  `/local-qa:qa-prepare <id>` (plugin `local-qa`) once its own QA passes — the services the change
+  needs, beside the other projects' and agents' ones (inventoried, never stopped or reconfigured;
+  compatible services of this project reused, the rest on free ports, a database of its own when the
+  change carries a migration) — and hands the owner a brief: the link, 3 to 6 points of gesture and
+  expected result, before/after captures. After the QA, `/local-qa:qa-prepare --cleanup` stops what it
+  started and only that.
 - **Irreversible gate** — the change is not *code only*: a migration, a stored format (database,
   cache, browser storage, published file), a rollout step after merge, consumption of paid quota or
   capacity, infrastructure, a public endpoint others consume. Open → the owner gives the go (merges).

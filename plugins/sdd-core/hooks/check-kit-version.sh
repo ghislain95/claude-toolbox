@@ -4,7 +4,8 @@
 # /sdd-core:sdd-init --refresh) to bring the project's generated files up to date.
 # Silent and exit 0 in every other case: no CLAUDE.md, no install marker, same or newer version,
 # unreadable files. Never blocks a session. No dependency beyond bash, grep, sed and sort.
-# Marker written by sdd-init as the last line of CLAUDE.md (references/adoption.md §2):
+# Marker written by sdd-init as the last line of CLAUDE.md (references/adoption.md §2), at the root or,
+# for a project that keeps its rules in .claude/CLAUDE.md, there (the root one wins when both carry one):
 #   <!-- claude-toolbox: installed 0.4.0 on 2026-11-13 — options: … -->
 # Older markers end with `— autonomy: …` (the autonomy levels are gone); only the version is read.
 # Projects set up before the catalog was renamed carry the former marker, still recognised:
@@ -14,13 +15,17 @@ cat >/dev/null 2>&1   # SessionStart input is not needed
 
 PROJECT="${CLAUDE_PROJECT_DIR:-$PWD}"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)}"
-CLAUDE_MD="$PROJECT/CLAUDE.md"
 MANIFEST="$PLUGIN_ROOT/.claude-plugin/plugin.json"
 
-[ -f "$CLAUDE_MD" ] && [ -f "$MANIFEST" ] || exit 0
+[ -f "$MANIFEST" ] || exit 0
 
 VERSION_RE='[0-9]+\.[0-9]+\.[0-9]+'
-installed=$(grep -oE "<!--[[:space:]]*(claude-toolbox|sdd-kit): installed ${VERSION_RE}" "$CLAUDE_MD" 2>/dev/null | tail -n 1 | grep -oE "$VERSION_RE")
+installed=""
+for CLAUDE_MD in "$PROJECT/CLAUDE.md" "$PROJECT/.claude/CLAUDE.md"; do
+  [ -f "$CLAUDE_MD" ] || continue
+  installed=$(grep -oE "<!--[[:space:]]*(claude-toolbox|sdd-kit): installed ${VERSION_RE}" "$CLAUDE_MD" 2>/dev/null | tail -n 1 | grep -oE "$VERSION_RE")
+  [ -n "$installed" ] && break
+done
 current=$(grep -oE "\"version\"[[:space:]]*:[[:space:]]*\"${VERSION_RE}\"" "$MANIFEST" 2>/dev/null | head -n 1 | grep -oE "$VERSION_RE")
 [ -n "$installed" ] && [ -n "$current" ] || exit 0
 [ "$installed" = "$current" ] && exit 0

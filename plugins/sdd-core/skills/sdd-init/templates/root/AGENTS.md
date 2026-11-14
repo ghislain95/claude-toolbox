@@ -56,6 +56,8 @@ contract handed from one agent to the next.
 5. commit            ← by the agent, one per task group, on the change branch (docs/CONTRIBUTING.md §2)
 6. review-harness    ← every review angle on the commits, code-reviewer included (mandatory, before verify)
 7. /opsx:verify      ← implementation vs specs, tasks ticked
+7b. intent QA        ← intent gate open: /local-qa:qa-prepare <id> (local environment, the agent's
+                       own QA, the owner's brief), the owner's QA, then --cleanup
 <!-- sdd:if github -->
 8. PR 1 + merge      ← the agent opens the change's PR; it merges only through the verified route
                        (merge-conditions success, gates: none, checked by the hook on GitHub) and
