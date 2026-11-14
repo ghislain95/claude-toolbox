@@ -22,14 +22,17 @@ pull request); without it, the change is the current branch.
 
 ## Rules (hold them from start to finish)
 
-1. **Never touch what you did not start.** No `docker stop|restart|rm|kill`, `docker compose down|up|restart`
-   on a compose project that is not this QA's (`qa-<project>[-<worktree>]`, given by the script), no
-   `kill` of a PID that is not in `.claude/qa/started.json`, no edit of another worktree's files, no
-   change to a shared service's configuration, users, schema or volumes. A port you want is taken →
-   another port, never the eviction of its holder.
-2. **Never migrate a shared database.** A change that adds or edits a migration gets its own database.
-3. **Record what you start, right after it answers** (`QA record …`). What is not recorded is never
-   stopped by the cleanup, and what is recorded is the only thing it stops.
+1. **Only ever stop what you provably started.** No `docker stop|restart|rm|kill`, `docker compose
+   down|up|restart` on a compose project that is not this QA's (`qa-<project>[-<worktree>]-<hash>`, given
+   by the script), no `kill` of a PID, no edit of another worktree's files, no change to a shared
+   service's configuration, users, schema or volumes. The only stop is `QA cleanup`, which stops what
+   `QA record` accepted. A port you want is taken → another port, never the eviction of its holder.
+2. **Never migrate a shared database**, and never reuse one whose applied migrations you cannot compare
+   with the worktree's: the script reuses a database only when its history equals the worktree's
+   migrations; otherwise this QA gets its own.
+3. **Start processes through `QA launch`, record what you start right after it answers** (`QA record
+   …`). What is not recorded is never stopped by the cleanup, and what is recorded is the only thing it
+   stops.
 4. **The change's own code always runs from this worktree.** A backend or frontend that runs from another
    worktree or the main checkout runs other code: it is never reused for this QA, whatever its port.
 
@@ -67,9 +70,20 @@ development, the dev-server scripts (`package.json`, `application*.yml`, `Makefi
 - `shared: true` only for infrastructure the project's worktrees share during development (database,
   cache, object store, message broker, tile server): a running instance **of the same project** may be
   reused. Never for a service that runs the code being changed.
-- `database: true`: the service holds a schema the change's migrations would alter.
+- `database: true`: the service holds a schema the change's migrations would alter. It needs the spec's
+  `migrations`, and, to ever be reused, `applied_migrations`: a **read-only** shell command printing the
+  migrations the running database has applied, one per line, run from the worktree with `QA_DB_HOST`
+  and `QA_DB_PORT` set to the candidate's address, e.g. for Flyway on PostgreSQL
+  `psql -h "$QA_DB_HOST" -p "$QA_DB_PORT" -U app -d app -tAc "select version from
+  flyway_schema_history where success"` (credentials from the project's dev settings, never typed into
+  the spec when they are secrets: an environment variable the project already defines). Without it, or
+  when it fails, the database is never reused.
 - `migrations`: globs of the project's migration files (with the spec-driven workflow: the migration
   paths of `.sdd/triggers.yaml`; otherwise the migration tool's folder). `**` crosses directories.
+  `migration_id` (optional): a regex whose group 1, applied to each file name, gives the identifier
+  `applied_migrations` prints — `^V([0-9_.]+)__` for Flyway's versions (default: the file name
+  without its extension). The worktree's set and the database's set must be equal: one missing on
+  either side → a database of this QA's own.
 
 ## 3. Inventory and plan
 
@@ -80,14 +94,23 @@ QA plan --spec <worktree>/.claude/qa/services.json --base origin/<default branch
 (`QA inventory` alone shows everything that runs: every container with its compose project, every
 listening port with its process and working directory, each mapped to its project and worktree.)
 
+`--base` is required when the spec has `migrations`. `plan` also **opens the QA**: it writes the
+QA's start time into `.claude/qa/started.json` (a process started before it is never accepted) and
+reserves each port it chooses with a machine-wide lock file (`$QA_PORT_LOCKS`, default
+`/tmp/qa-ports-<uid>`), so another agent preparing at the same time takes another port; the cleanup
+releases them, and a lock whose worktree no longer exists is reclaimed. Running `plan` again keeps the
+start time and the ports already reserved.
+
 For each service the plan says `reuse` (with the port, and whether this QA started it) or `start`
-(with the port to use, the compose project for a container, `default_port_taken_by` when the default
-port is held — by whom, from which project and worktree — and `isolated` when the change carries a
-migration: `migrations` lists them; `--pending-migration` declares one the globs cannot see).
+(with the reserved port, the compose project for a container, `default_port_taken_by` when the default
+port is held — by whom, from which project and worktree — and, for a database, `isolated` with the
+`reason`: the history differs, cannot be read, or `--pending-migration` declared a migration the
+globs cannot see). `migrations` lists the change's own migration files against `--base`.
 
 The script applies the mechanical rule: same project, not another worktree's QA, code services only
-from this worktree, no pending migration for a database. **You judge the rest** before reusing; any
-doubt → start your own instead (it costs a container, never another agent's afternoon):
+from this worktree, a database only with an equal history, whatever the service's kind. **You judge
+the rest** before reusing; any doubt → start your own instead (it costs a container, never another
+agent's afternoon):
 
 - **Version** — the running container's image (`QA inventory` gives it) matches what the worktree's
   compose file asks for. The change bumps an image → start your own.
@@ -127,22 +150,35 @@ change's migrations to it, and only to it. Then:
 QA record container --name <name> --service <compose service>
 ```
 
-A container the plan reports `reuse` with `"started_by_this_qa": true, "recorded": false` (left by an
-earlier preparation of this worktree) is recorded the same way.
+`record container` accepts a container only with both compose labels of this QA: its compose project
+and a compose working directory inside this worktree (a container without compose labels is never
+accepted, whatever its name). A container the plan reports `reuse` with `"started_by_this_qa": true,
+"recorded": false` (left by an earlier preparation of this worktree) is recorded the same way.
 
-**Processes** (backend, frontend) — start them from the worktree in the background (Bash tool with
-`run_in_background`), on the plan's port, wired to the chosen ports of the other services through
-command-line flags or environment variables (`--port`, `PORT=`, `SERVER_PORT=`, the database URL, the
-API URL the frontend calls, the allowed CORS origin when the frontend's port moved). Never edit a
-tracked configuration file for it: when a file is the only way, a gitignored local override the project
-already supports (`.env.local`, a local profile). Once it answers (health endpoint, first page):
+**Processes** (backend, frontend) — start each one from its directory in the worktree, in the
+background (Bash tool with `run_in_background`), **through `QA launch`**:
+
+```bash
+cd <worktree>/<module> && QA launch --name <name> -- <the dev-server command>
+```
+
+`launch` writes its own PID into `started.json` as a launcher of this QA, then becomes the command (same
+PID). Use the plan's port, wired to the chosen ports of the other services through command-line flags
+or environment variables (`--port`, `PORT=`, `SERVER_PORT=`, the database URL, the API URL the
+frontend calls, the allowed CORS origin when the frontend's port moved). Never edit a tracked
+configuration file for it: when a file is the only way, a gitignored local override the project already
+supports (`.env.local`, a local profile). Once it answers (health endpoint, first page):
 
 ```bash
 QA record process --name <name> --port <port>
 ```
 
-`record` refuses a container outside this QA's compose project and a process that does not run from
-this worktree: a refusal means you were about to take ownership of something that is not yours.
+`record process` accepts the process listening on that port only when all of these hold: it runs from
+this very worktree (from the main checkout, a nested `.claude/worktrees/<x>` is another worktree); it
+started after `plan` opened this QA; it descends from a `launch` of this QA (or from the shell running
+`record`); it is not Claude Code, a desktop app or an IDE helper. A refusal means you were about to take
+ownership of something that is not yours: the agent sessions and the owner's own dev servers listen
+with their working directory in the project too.
 
 ## 5. Your own QA, then the brief
 
@@ -161,8 +197,8 @@ checklist line per point with a bold title, the gesture and the expected result)
 
 **Préparation**
 - Open http://localhost:<port>/<path>
-- Running for this QA: backend :8081 and frontend :5174 (this worktree), database `qa-shop-<worktree>`
-  on :5434 (the change adds migration V42; port 5432 is held by another project's database, left
+- Running for this QA: backend :8081 and frontend :5174 (this worktree), database
+  `qa-shop-<worktree>-<hash>` on :5434 (the change adds migration V42; port 5432 is held by another project's database, left
   alone); reused: the project's Redis on :6379.
 
 **Vérifications**
@@ -189,9 +225,13 @@ QA cleanup --dry-run     # what would stop: only started.json's entries
 QA cleanup
 ```
 
-It stops each recorded process (after checking it is still the process you started: same command,
-same start time — a reused PID is skipped and reported) and each recorded container, then removes this
-QA's compose volumes and networks once its containers are gone. Background tasks you started with the
-Bash tool can be stopped with their own tool first; the cleanup then reports them `gone`. Entries that
-failed to stop stay in `started.json`, the command exits 1: report them, never stop anything else in
-their place. Report what stopped and what kept running (the reused services, untouched).
+It stops each recorded process after checking it is still the process you started (same command,
+same start time): SIGTERM to it, or to its process group when it leads one, then SIGKILL after a grace
+period, and it reports `stopped` only once nothing of the group is left. It stops each recorded
+container after checking again its full id and its compose labels. Then it removes this QA's compose
+volumes and networks once its containers are gone, and releases the ports this QA reserved. An entry it
+does not stop — `skipped` (the PID now runs another process, the container is no longer labelled for
+this QA) or `failed` — stays in `started.json` and the command exits 1: report it, never stop anything
+else in its place. Background tasks you started with the Bash tool can be stopped with their own tool
+first; the cleanup then reports them `gone`. Report what stopped and what kept running (the reused
+services, untouched).

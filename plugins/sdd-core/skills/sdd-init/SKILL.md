@@ -18,8 +18,9 @@ This folder (the "base directory" given when the skill is invoked) contains:
 - `references/recon.md` — the reverse-documentation checklist;
 - `references/adoption.md` — projects that already have a `CLAUDE.md`, agents or OpenSpec (adoption mode,
   with its mapping table), and the `--refresh` mode;
-- `scripts/refresh_merge.py` — the three-way merge of `--refresh` (base fetched from the toolbox's tag of
-  the recorded version), with its tests `scripts/test_refresh_merge.py`.
+- `scripts/refresh_merge.py` — the install marker's toolbox commit (`install-sha`, `read-marker`) and the
+  three-way merge of `--refresh` (base fetched from the toolbox at the commit the marker records), with
+  its tests `scripts/test_refresh_merge.py`.
 
 `$ARGUMENTS` contains `--refresh` → go straight to `references/adoption.md` §3.
 
@@ -178,8 +179,9 @@ the choices the code cannot settle:
    `sdd:if`/`sdd:endif` resolved (a marker alone on its line goes with its line), `sdd:each`
    expanded, `sdd:note` removed, paths normalised (VARIABLES §4). Translate the prose if the docs are
    not in English. Reverse-documented ADRs follow `templates/docs/adr/ADR-000-template.md`.
-6. **Marker**: the last line of `CLAUDE.md` = the install marker (`references/adoption.md` §2) — it is
-   what `/sdd-core:sdd-init --refresh` relies on.
+6. **Marker**: the last line of `CLAUDE.md` = the install marker (`references/adoption.md` §2), with the
+   toolbox commit `python3 <base directory>/scripts/refresh_merge.py install-sha --skill-dir <base
+   directory>` gives — it is what `/sdd-core:sdd-init --refresh` merges from.
 
 ## Phase 4 — Guardrails
 
@@ -275,7 +277,8 @@ the choices the code cannot settle:
 Everything must pass; otherwise fix it before delivering:
 
 ```bash
-grep -rnE '^(<<<<<<<|\|\|\|\|\|\|\||>>>>>>>) ' CLAUDE.md .claude/CLAUDE.md AGENTS.md .claude/agents .claude/hooks docs openspec/config.yaml .github 2>/dev/null   # empty: no merge conflict left (--refresh)
+git add <every file written or merged> && git diff --cached --check   # no "leftover conflict marker" line; a trailing-whitespace line the project's file already had is listed in the report, not fixed
+grep -nE '^(<<<<<<<|\|\|\|\|\|\|\||>>>>>>>)( |$)' <every path of the refresh manifest>   # --refresh: empty, no conflict left
 grep -rnE '(^|[^$])\{\{[A-Z_]+\}\}|sdd:(fill|if|endif|each|endeach|note)' CLAUDE.md AGENTS.md .claude/agents .claude/hooks .claude/settings.json docs openspec/config.yaml .sdd .github .gitignore .worktreeinclude .graphifyignore $(find . -name vercel.json -not -path '*/node_modules/*') 2>/dev/null   # empty
 openspec validate --all
 bash .claude/hooks/block-git-writes.test.sh                      # ALL n CASES OK, whatever the settings (gh is stubbed)

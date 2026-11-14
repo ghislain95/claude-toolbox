@@ -62,7 +62,26 @@ tc() {
 }
 tc warn  "marker in .claude/CLAUDE.md, no root CLAUDE.md" "__none__" "<!-- claude-toolbox: installed 0.1.0 on 2026-11-14 -->"
 tc warn  "root CLAUDE.md without marker, marker in .claude/CLAUDE.md" "# P" "<!-- claude-toolbox: installed 0.1.0 on 2026-11-14 -->"
-tc quiet "root marker wins over .claude/CLAUDE.md" "<!-- claude-toolbox: installed 0.2.0 on 2026-11-14 -->" "<!-- claude-toolbox: installed 0.1.0 on 2026-11-14 -->"
+# Both files carry a marker: a conflict, named in the notice; the highest version is compared.
+tb() {
+  local what="$1" root="$2" nested="$3" behind="$4" proj out
+  n=$((n+1))
+  proj=$(mktemp -d "$TMP/p.XXXX"); mkdir -p "$proj/.claude"
+  printf '%s\n' "$root" > "$proj/CLAUDE.md"
+  printf '%s\n' "$nested" > "$proj/.claude/CLAUDE.md"
+  out=$(echo '{}' | CLAUDE_PROJECT_DIR="$proj" CLAUDE_PLUGIN_ROOT="$TMP/plugin" bash "$H"; echo "rc=$?")
+  [[ "$out" == *'"systemMessage"'*'Two install markers: CLAUDE.md ('*'.claude/CLAUDE.md ('* && "$out" == *"rc=0" ]] || { echo "FAIL ($what): $out"; fail=1; }
+  if [ "$behind" != current ]; then
+    [[ "$out" == *"set up with sdd-core ${behind}; the installed sdd-core plugin is 0.2.0"* ]] || { echo "FAIL ($what, behind): $out"; fail=1; }
+  else
+    [[ "$out" != *'set up with sdd-core'* ]] || { echo "FAIL ($what, not behind): $out"; fail=1; }
+  fi
+  printf '%s' "${out%rc=0}" | python3 -c 'import json,sys; json.loads(sys.stdin.read())' 2>/dev/null \
+    || { echo "FAIL ($what): output is not valid JSON"; fail=1; }
+}
+tb "both markers, the highest is current: conflict only" "<!-- claude-toolbox: installed 0.1.0 on 2026-11-14 -->" "<!-- claude-toolbox: installed 0.2.0 on 2026-11-14 -->" current
+tb "both markers, the highest still behind" "<!-- sdd-kit: installed 0.1.5 on 2026-11-07 -->" "<!-- claude-toolbox: installed 0.1.0 on 2026-11-14 -->" 0.1.5
+tc warn  "new marker with the toolbox commit, behind" "__none__" "<!-- claude-toolbox: installed 0.1.0 (0123456789abcdef0123456789abcdef01234567) on 2026-11-14 — options: github -->"
 tc quiet ".claude/CLAUDE.md without marker" "__none__" "# P"
 
 # Missing plugin manifest: quiet.

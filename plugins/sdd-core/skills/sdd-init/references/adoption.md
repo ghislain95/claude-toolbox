@@ -41,7 +41,7 @@ corrections change the table, then the table is the plan.
    existing docs' language and only asks when they mix languages.
 4. **Location**: the project's layout stays. A project whose rules live in `.claude/CLAUDE.md` keeps
    them there (no second, root `CLAUDE.md` that would drift from it); the install marker goes on that
-   file's last line — the version check reads the root `CLAUDE.md`, then `.claude/CLAUDE.md`.
+   file's last line, and only there — the version check reads both files and flags a marker in each.
 5. Show the table, the files counted by decision, and every **decide** row as a question. Wait for the
    approval. Then the per-file rules of §1b apply to each row.
 
@@ -91,22 +91,32 @@ kept / in conflict) before the commit.
 
 Last line of the generated `CLAUDE.md` (in adoption mode, of the file that holds the project's rules:
 the root `CLAUDE.md`, or `.claude/CLAUDE.md` when the project keeps them there — the version check
-reads both, the root one first):
+reads both):
 
 ```markdown
-<!-- claude-toolbox: installed <sdd-core plugin version> on <YYYY-MM-DD> — options: <list> -->
+<!-- claude-toolbox: installed <sdd-core plugin version> (<toolbox commit>) on <YYYY-MM-DD> — options: <list> -->
 ```
 
 It is what `--refresh` relies on. Read the version in the plugin's `.claude-plugin/plugin.json` (two
-levels above this skill). Markers written before the autonomy levels were removed end with
-`— autonomy: <level>`: still read (§3), never written again.
+levels above this skill) and the commit with `python3 <base directory>/scripts/refresh_merge.py
+install-sha --skill-dir <base directory>`: Claude Code's record of the installed plugin
+(`installed_plugins.json`, its `gitCommitSha`), else the kit's clean git checkout. When it answers
+`"sha": null` (a kit with uncommitted changes, an unknown install), write the marker without the
+parenthesis and say in the report that the next refresh will merge two ways. The commit, not the
+version, names the templates: one version number has shipped several template sets. Markers written
+before 0.4.0 have no commit; markers written before the autonomy levels were removed end with
+`— autonomy: <level>`: both still read (§3), never written again. Only one file carries the marker: a
+project with a marker in both `CLAUDE.md` and `.claude/CLAUDE.md` gets a notice from the version check
+(the highest version is compared); the refresh keeps the one in the file that holds the rules.
 
 ## 3. `/sdd-init --refresh` — resync with a newer version of the kit
 
-1. Read the marker (`claude-toolbox: installed …`, or `sdd-kit: installed …` for a project set up before
-   the catalog was renamed — rewrite it to the new form): installed version, options, and the former
-   `autonomy` level if the marker still has one (it only feeds step 4's report; the new marker drops
-   it). Missing → this project was not set up by the kit: offer a full install in adoption mode (§1).
+1. Read the marker: `python3 <base directory>/scripts/refresh_merge.py read-marker CLAUDE.md
+   .claude/CLAUDE.md` (`claude-toolbox: installed …`, or `sdd-kit: installed …` for a project set up
+   before the catalog was renamed — rewritten to the new form): installed version, toolbox commit (null
+   before 0.4.0), options, and the former `autonomy` level if the marker still has one (it only feeds
+   step 4's report; the new marker drops it). `conflict` → the owner says which file keeps it. Missing
+   (exit 3) → this project was not set up by the kit: offer a full install in adoption mode (§1).
 2. Branch `chore/sdd-init-refresh-<version>`.
 3. For every file generated from a template (`CLAUDE.md`, `AGENTS.md`, `.claude/agents/*`,
    `docs/{CONTRIBUTING,OPENSPEC_GUIDE,AGENT_TOOLBOX,GRAPHIFY}.md`, `openspec/config.yaml`,
@@ -122,13 +132,15 @@ levels above this skill). Markers written before the autonomy levels were remove
    template-generated file is merged **three
    ways** — base: the templates of the recorded version; ours: the project's file; theirs: the new
    template — so that a local edit and a kit change are told apart by construction, not guessed:
-   - **Base** — `python3 <base directory>/scripts/refresh_merge.py fetch-base --version <recorded
-     version> --dest <tmp>/base` (`<tmp>` from `mktemp -d`): a shallow fetch of the toolbox's tag
-     `sdd-core-v<recorded version>` (`https://github.com/ghislain95/claude-toolbox`), of which only the
+   - **Base** — `python3 <base directory>/scripts/refresh_merge.py fetch-base --sha <the marker's
+     commit> --dest <tmp>/base` (`<tmp>` from `mktemp -d`): a shallow fetch of exactly that commit of
+     `https://github.com/ghislain95/claude-toolbox`, checked to be that commit, of which only the
      `templates/` folder is kept, in a temporary directory; no template copy is ever stored in the
-     project. Exit 3 (`missing-tag`: a version released before the tags existed; `unreachable`: no
-     network or no access) → **two-way fallback** for every file: the report says so, with the reason
-     the script gave.
+     project. Never pass `--repository` (it exists for the script's tests; when set, the JSON says
+     `repository_override` and you report it). No commit in the marker (a project set up before
+     0.4.0), or exit 3 (`missing-commit`, `unreachable`: no network or no access) → **two-way
+     fallback** for every file: the report says so, with the reason. Release tags
+     (`sdd-core-v<version>`) are for people; the refresh never reads them.
    - **Fill base and theirs alike** — the recorded version's template into `<tmp>/base-filled/<path>`,
      the new template (this skill's `templates/`) into `<tmp>/new-filled/<path>`, both with the
      **same** project values, read back from the current files, never deduced again: the same
@@ -139,18 +151,25 @@ levels above this skill). Markers written before the autonomy levels were remove
      only the lines the raw templates changed between the two versions (an unchanged line keeps the
      base's translation word for word — a fresh translation of it would read as a kit change).
    - **Merge** — a manifest, `[{"path": "<project file>", "base": "<tmp>/base-filled/…" or null,
-     "theirs": "<tmp>/new-filled/…"}]` (`base` null when the fallback applies, or the path of a file
-     the base version did not have), then `python3 <base directory>/scripts/refresh_merge.py merge
-     --manifest <file> --old-version <recorded> --new-version <current>`. It runs `git merge-file
-     --diff3` on each file, in place, and reports each one: `merged`, `unchanged`, `created` (a file
-     the kit adds), `two_way` (no base: the file is left untouched and the differences with the new
-     template are listed as `hunks` — apply what plainly comes from the kit, keep the local version
+     "theirs": "<tmp>/new-filled/…"}]` (`base` null when there is no base commit; a base path that does
+     not exist when the recorded commit had no such template), then `python3 <base
+     directory>/scripts/refresh_merge.py merge --manifest <file> --old-version <recorded> --new-version
+     <current>`. It checks every entry first — two paths that are the same file (a symlink) refused, a
+     file that is not UTF-8 or still holds conflict markers from an earlier refresh refused — and
+     merges them all in memory with `git merge-file --diff3` (a CRLF file merged and written in CRLF);
+     nothing is written unless every entry could be merged (exit 2 otherwise, the reason in the JSON).
+     It reports each file: `merged`, `unchanged`, `created` (a template new in the kit, absent from the
+     project), `deleted_locally` (the project deleted a file the recorded commit had: not created
+     again), `two_way` (exit 4: no base — `no-base-commit`, or `new-in-kit` when the project already
+     has a file the recorded commit had no template for; the file is left untouched and the
+     differences are listed as `hunks` — apply what plainly comes from the kit, keep the local version
      when in doubt about where a difference comes from, list it), `conflicts` (exit 1: the same lines
      changed on both sides).
    - **Conflicts go to the owner**, never resolved by picking a side: the file carries the markers
      `<<<<<<< local`, `||||||| kit <recorded>` (the base), `=======`, `>>>>>>> kit <current>`; show
      each one to the owner with both sides and the base, apply their answer, and commit nothing while a
-     marker is left (phase 5 checks it).
+     marker is left (phase 5: `git diff --cached --check` on everything staged and the marker grep over
+     every path of the manifest).
 4. Files copied verbatim (hook `.sh`/`.pl`/`.test.sh`, `.sdd/bin/merge_conditions.py`,
    `.sdd/bin/test_merge_conditions.py` and `.sdd/bin/deploy-guard.sh`): replaced, then `bash .claude/hooks/block-git-writes.test.sh`
    and `python3 .sdd/bin/test_merge_conditions.py`. The local `.conf` is kept, its values unchanged,
@@ -192,4 +211,4 @@ levels above this skill). Markers written before the autonomy levels were remove
 6. Phase 5 of `SKILL.md` (checks), then one commit `chore(sdd-init): refresh workflow to <version>`
    listing in its body the merge's outcome per file (merged, conflicts and the owner's answers,
    two-way fallback and why), what comes from the kit and the local differences kept. Marker updated
-   to the new version: it is the next refresh's base.
+   to the new version and the commit `install-sha` gives: it is the next refresh's base.

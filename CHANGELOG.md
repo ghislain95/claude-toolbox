@@ -31,32 +31,45 @@ Plugins: `sdd-core` 0.4.0, `handoff` 0.1.1, `local-qa` 0.1.0 (new).
 
 ### Added
 - **`local-qa` plugin**, `/local-qa:qa-prepare`: the owner's intent QA of a change runs locally, on a
-  machine other projects and agents share. It inventories what runs (containers with their compose
-  project and working directory, listening ports with each process's working directory, each mapped
-  to its project and worktree), reuses a running service only when it belongs to the same project
-  and is compatible (shared infrastructure; never code from another worktree; never a shared
-  database the change migrates — an isolated one under the compose project `qa-<project>-<worktree>`
-  instead), starts the rest on free ports, records what it started in `.claude/qa/started.json`, and
-  hands the owner a QA brief (link, 3 to 6 gestures with expected results, before/after captures) in
-  the shape the `conversation-cards` mod draws as a QA card. `--cleanup` stops exactly what it
-  started; it never stops, restarts or reconfigures anything else. The deterministic part is
-  `scripts/qa_env.py` (standard library), with its tests. The templates call it at the intent gate
+  machine other projects and agents share, and it only ever stops what it provably started. It
+  inventories what runs (containers with their compose project and working directory, listening ports
+  with each process's working directory, each mapped to its project and worktree); reuses a running
+  service only when it belongs to the same project and is compatible (shared infrastructure; never
+  code from another worktree; a database only when its applied migrations, read by a read-only
+  `applied_migrations` command of the services spec, equal the worktree's — otherwise, or when it
+  cannot compare, a database of its own under the compose project `qa-<project>-<worktree>-<hash>`);
+  starts the rest on free ports it reserves machine-wide (lock files, released at cleanup); starts
+  processes through `launch` and records in `.claude/qa/started.json` only a process of this very
+  worktree, started after the QA opened, descending from its `launch` or its recording shell, and not
+  Claude Code, a desktop app or an IDE helper, and only a container with this QA's compose labels;
+  and hands the owner a QA brief (link, 3 to 6 gestures with expected results, before/after
+  captures) in the shape the `conversation-cards` mod draws as a QA card. `--cleanup` re-checks each
+  entry (same process, same labels, full container id), escalates to SIGKILL and checks the process
+  group is gone, keeps what it could not stop in `started.json`, and stops nothing else. The
+  deterministic part is `scripts/qa_env.py` (standard library), with its tests. The templates call it at the intent gate
   (`CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md` "Who merges", `OPENSPEC_GUIDE.md` §3 and §7,
   `AGENT_TOOLBOX.md`); `.claude/qa/` is added to the generated `.gitignore`.
 - **Adoption mode starts with a mapping table**: every existing rule file or section → its kit
   counterpart → keep / merge / replace / create / decide, with the reason, shown to the owner and
   approved before any file is written; the project's language, layout and project-specific rules are
   kept. `references/adoption.md` has a worked example.
-- **Three-way `--refresh`**: base = the templates of the version the project's marker records,
-  fetched from the toolbox's git tag `sdd-core-v<version>`; ours = the project's file; theirs = the new
-  template filled with the project's values; `git merge-file --diff3` merges. A local edit and a kit
-  change on different lines are both kept; the same lines changed on both sides are reported to the
-  owner, never resolved by picking a side. Without the tag (or the network), the former two-way
-  comparison ("keep the local version when in doubt"), said in the report. Script
-  `sdd-init/scripts/refresh_merge.py`, with its tests. Releases are tagged from now on
-  (`MAINTAINING.md`).
+- **The install marker records the toolbox commit**: `claude-toolbox: installed <version> (<commit>) on
+  <date> …`, the commit read from Claude Code's record of the installed plugin. A version number does
+  not name one template set (0.3.0 named five); a commit does.
+- **Three-way `--refresh`**: base = the templates of the commit the project's marker records, fetched
+  from the toolbox at that exact commit; ours = the project's file; theirs = the new template filled
+  with the project's values; `git merge-file --diff3` merges. A local edit and a kit change on
+  different lines are both kept; the same lines changed on both sides are reported to the owner,
+  never resolved by picking a side. Every entry is checked and merged before anything is written (a
+  failure writes nothing); a file the project deleted is not created again; a CRLF file stays CRLF;
+  a file still holding conflict markers, not UTF-8, or reached twice through a symlink is refused.
+  Without a commit in the marker (projects set up before 0.4.0), or without the network, the former
+  two-way comparison ("keep the local version when in doubt"), said in the report. Script
+  `sdd-init/scripts/refresh_merge.py`, with its tests. Phase 5 runs `git diff --cached --check` on
+  what is staged. Releases are tagged `sdd-core-v<version>` for people; the refresh does not read
+  tags.
 - The version check also reads the marker in `.claude/CLAUDE.md` (projects that keep their rules
-  there), the root `CLAUDE.md` first.
+  there); with a marker in both files it compares the highest version and names the conflict.
 - **Review harness**: `/sdd-core:review-harness <id>` reviews an implemented change from eight angles
   (`review-spec-conformance`, `review-conventions`, `review-bugs`, `review-tests`, `review-security`,
   `review-performance`, `review-interface`, `review-sourced-claims`), backs opinions with mechanical
@@ -138,8 +151,9 @@ Projects set up with 0.3.0: first `claude plugin install local-qa@claude-toolbox
 `CONTRIBUTING.md`, `OPENSPEC_GUIDE.md`, the agents and `openspec/config.yaml`, creates
 `.sdd/harness.yaml`, `.sdd/triggers.yaml`, `.sdd/deployment.yaml` and `.sdd/bin/`, adds
 `merge-conditions.yml` and, with a deploy, the deploy guard (above), replaces the hook and migrates
-`block-git-writes.conf` (see "Changed"). It merges three ways from the tag `sdd-core-v0.3.0` once that
-tag exists; projects set up with 0.2.0 or earlier have no tag and are refreshed two ways.
+`block-git-writes.conf` (see "Changed"). Their markers carry no commit, so this first refresh
+compares two ways (keeping the local version when in doubt) and writes the commit into the marker;
+the next refresh merges three ways.
 
 ## 0.3.0 — 2026-11-12
 

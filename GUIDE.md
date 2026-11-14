@@ -263,11 +263,12 @@ A new version only reaches you when its `version` number changes: see [`CHANGELO
 
 **Each project.** A plugin update does not touch the files already generated in your projects. In each installed
 project: `/sdd-core:sdd-init --refresh` (or the install prompt of the README again). It merges each generated
-file three ways — the templates of the version your project was set up with (fetched from the
-toolbox's tag `sdd-core-v<version>`), your file, the new templates — so it applies what comes from the
-kit, **keeps your local changes**, and shows you any line both changed instead of choosing; it never
-touches the specs, the changes or the reverse-documentation. Without that tag (versions before 0.3.0)
-it compares two ways and keeps your version when in doubt.
+file three ways — the templates of the toolbox commit your project was set up from (recorded in the
+install marker, fetched from the toolbox at that commit), your file, the new templates — so it applies
+what comes from the kit, **keeps your local changes**, and shows you any line both changed instead of
+choosing; it never touches the specs, the changes or the reverse-documentation. A project set up before
+0.4.0 has no commit in its marker: its first refresh compares two ways and keeps your version when in
+doubt, then records the commit for the next one.
 
 **A project with its own agent setup** (its own `CLAUDE.md` rules, agents, hooks) is adopted rather
 than overwritten: `sdd-init` first shows you a table — each existing file or section, the kit file it
