@@ -35,11 +35,14 @@ Plugins: `sdd-core` 0.4.0, `handoff` 0.1.1, `local-qa` 0.1.0 (new).
   inventories what runs (containers with their compose project and working directory, listening ports
   with each process's working directory, each mapped to its project and worktree); reuses a running
   service only when it belongs to the same project and is compatible (shared infrastructure; never
-  code from another worktree; a database only when its applied migrations, read by a read-only
-  `applied_migrations` command of the services spec, equal the worktree's — otherwise, or when it
-  cannot compare, a database of its own under the compose project `qa-<project>-<worktree>-<hash>`);
+  code from another worktree; a database only when the change adds or edits no migration file and
+  the database's applied migrations, read by a read-only `applied_migrations` command of the services
+  spec, equal the worktree's — otherwise, when it cannot compare, or with `migrations: []` (a schema
+  no migration file manages), a database of its own under the compose project
+  `qa-<project>-<worktree>-<hash>`);
   starts the rest on free ports it reserves machine-wide (lock files, released at cleanup); starts
-  processes through `launch` and records in `.claude/qa/started.json` only a process of this very
+  processes through `launch` (a Gradle server with `--no-daemon`: the daemon would detach it, and the
+  refusal says so) and records in `.claude/qa/started.json` only a process of this very
   worktree, started after the QA opened, descending from its `launch` or its recording shell, and not
   Claude Code, a desktop app or an IDE helper, and only a container with this QA's compose labels;
   and hands the owner a QA brief (link, 3 to 6 gestures with expected results, before/after
@@ -61,8 +64,10 @@ Plugins: `sdd-core` 0.4.0, `handoff` 0.1.1, `local-qa` 0.1.0 (new).
   with the project's values; `git merge-file --diff3` merges. A local edit and a kit change on
   different lines are both kept; the same lines changed on both sides are reported to the owner,
   never resolved by picking a side. Every entry is checked and merged before anything is written (a
-  failure writes nothing); a file the project deleted is not created again; a CRLF file stays CRLF;
-  a file still holding conflict markers, not UTF-8, or reached twice through a symlink is refused.
+  failure writes nothing, and a failure while putting the files in place names what was and was not
+  written); a file the project deleted is not created again; a CRLF file stays CRLF; a file still
+  holding a conflict-marker line neither template carries, not UTF-8, or reached twice through a
+  symlink is refused.
   Without a commit in the marker (projects set up before 0.4.0), or without the network, the former
   two-way comparison ("keep the local version when in doubt"), said in the report. Script
   `sdd-init/scripts/refresh_merge.py`, with its tests. Phase 5 runs `git diff --cached --check` on

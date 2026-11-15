@@ -277,8 +277,8 @@ the choices the code cannot settle:
 Everything must pass; otherwise fix it before delivering:
 
 ```bash
-git add <every file written or merged> && git diff --cached --check   # no "leftover conflict marker" line; a trailing-whitespace line the project's file already had is listed in the report, not fixed
-grep -nE '^(<<<<<<<|\|\|\|\|\|\|\||>>>>>>>)( |$)' <every path of the refresh manifest>   # --refresh: empty, no conflict left
+git add <every file written or merged> && git diff --cached --check   # no "leftover conflict marker" line but the template's own examples; a trailing-whitespace line the project's file already had is listed in the report, not fixed
+grep -nE '^(<<<<<<<|\|\|\|\|\|\|\||>>>>>>>)( |$)' <every path of the refresh manifest>   # --refresh: no conflict left (a marker-looking line the template itself ships, an example in a code block, is not one)
 grep -rnE '(^|[^$])\{\{[A-Z_]+\}\}|sdd:(fill|if|endif|each|endeach|note)' CLAUDE.md AGENTS.md .claude/agents .claude/hooks .claude/settings.json docs openspec/config.yaml .sdd .github .gitignore .worktreeinclude .graphifyignore $(find . -name vercel.json -not -path '*/node_modules/*') 2>/dev/null   # empty
 openspec validate --all
 bash .claude/hooks/block-git-writes.test.sh                      # ALL n CASES OK, whatever the settings (gh is stubbed)

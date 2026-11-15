@@ -2,6 +2,8 @@
 """Tests of refresh_merge.py: `python3 test_refresh_merge.py` (standard library and git only, offline: the
 toolbox is a local repository reached through a file:// URL)."""
 
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -12,6 +14,8 @@ import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPT = os.path.join(HERE, "refresh_merge.py")
+sys.path.insert(0, HERE)
+import refresh_merge  # noqa: E402
 TEMPLATES = "plugins/sdd-core/skills/sdd-init/templates"
 
 TEMPLATE_V1 = "".join("line %d of the kit\n" % number for number in range(1, 11))
@@ -101,6 +105,71 @@ class MergeTest(RefreshCase):
         self.assertIn("conflict markers", report["error"])
         self.assertEqual(self.read("project/CLAUDE.md"), conflicted)
         self.assertEqual(self.read("project/OTHER.md"), replace_line(TEMPLATE_V1, 2, "x\n"), "nothing written when one entry fails")
+
+    def test_marker_looking_lines_the_templates_ship_are_accepted_a_leftover_in_a_fence_is_not(self):
+        example = "```text\n<<<<<<< HEAD\nmine\n=======\ntheirs\n>>>>>>> feature\n```\n"
+        base = self.write("base/G.md", TEMPLATE_V1 + example)
+        theirs = self.write("new/G.md", replace_line(TEMPLATE_V1, 9, "line 9 changed by the kit\n") + example)
+        self.write("project/G.md", replace_line(TEMPLATE_V1, 2, "local\n") + example)
+        report = self.merge([{"path": "project/G.md", "base": base, "theirs": theirs}])
+        self.assertEqual(len(report["merged"]), 1)
+        self.assertIn("line 9 changed by the kit\n", self.read("project/G.md"))
+        two_way = self.merge([{"path": "project/G.md", "base": None, "theirs": theirs}], expect=4)
+        self.assertEqual(len(two_way["two_way"]), 1, "two-way, no base: theirs alone ships the example")
+        leftover = "```text\n<<<<<<< local\nmine\n=======\nkit\n>>>>>>> kit 0.4.0\n```\n"
+        self.write("project/H.md", TEMPLATE_V1 + leftover)
+        report = self.merge([{"path": "project/H.md", "base": base, "theirs": theirs}], expect=2)
+        self.assertIn("conflict markers (line 12, 16)", report["error"])
+
+    def test_a_staging_failure_writes_nothing(self):
+        if os.geteuid() == 0:
+            self.skipTest("root ignores directory permissions")
+        base, theirs = self.base_and_theirs()
+        local = replace_line(TEMPLATE_V1, 2, "local\n")
+        self.write("project/a.md", local)
+        self.write("locked/b.md", local)
+        os.chmod(os.path.join(self.root, "locked"), 0o555)
+        self.addCleanup(os.chmod, os.path.join(self.root, "locked"), 0o755)
+        report = self.merge(
+            [{"path": "project/a.md", "base": base, "theirs": theirs}, {"path": "locked/b.md", "base": base, "theirs": theirs}], expect=2
+        )
+        self.assertIn("nothing written", report["error"])
+        self.assertEqual((report["written"], report["not_written"]), ([], ["project/a.md", "locked/b.md"]))
+        self.assertEqual(self.read("project/a.md"), local)
+        self.assertEqual([name for name in os.listdir(os.path.join(self.root, "project")) if name.startswith(".refresh-")], [])
+
+    def test_a_replacement_failure_reports_what_was_and_was_not_written(self):
+        base, theirs = self.base_and_theirs()
+        local = replace_line(TEMPLATE_V1, 2, "local\n")
+        self.write("project/a.md", local)
+        self.write("project/b.md", local)
+        manifest = self.write("manifest.json", json.dumps(
+            [{"path": "project/a.md", "base": base, "theirs": theirs}, {"path": "project/b.md", "base": base, "theirs": theirs}]
+        ))
+        real_replace = os.replace
+        calls = []
+
+        def failing_second(source, destination):
+            calls.append(destination)
+            if len(calls) == 2:
+                raise PermissionError("denied")
+            real_replace(source, destination)
+
+        output = io.StringIO()
+        previous = os.getcwd()
+        os.chdir(self.root)
+        os.replace = failing_second
+        try:
+            with contextlib.redirect_stdout(output):
+                code = refresh_merge.main(["merge", "--manifest", manifest])
+        finally:
+            os.replace = real_replace
+            os.chdir(previous)
+        report = json.loads(output.getvalue())
+        self.assertEqual((code, report["written"], report["not_written"]), (2, ["project/a.md"], ["project/b.md"]))
+        self.assertIn("line 9 changed by the kit", self.read("project/a.md"))
+        self.assertEqual(self.read("project/b.md"), local)
+        self.assertEqual([name for name in os.listdir(os.path.join(self.root, "project")) if name.startswith(".refresh-")], [])
 
     def test_the_same_change_on_both_sides_merges_cleanly(self):
         base = self.write("base/a.md", TEMPLATE_V1)

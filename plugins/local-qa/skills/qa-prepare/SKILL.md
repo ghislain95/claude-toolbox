@@ -71,7 +71,9 @@ development, the dev-server scripts (`package.json`, `application*.yml`, `Makefi
   cache, object store, message broker, tile server): a running instance **of the same project** may be
   reused. Never for a service that runs the code being changed.
 - `database: true`: the service holds a schema the change's migrations would alter. It needs the spec's
-  `migrations`, and, to ever be reused, `applied_migrations`: a **read-only** shell command printing the
+  `migrations` key — the globs, or `[]` when no migration file manages the schema (an ORM that creates
+  it at start-up): with `[]` the database is never reused, since nothing can be compared — and, to ever
+  be reused, `applied_migrations`: a **read-only** shell command printing the
   migrations the running database has applied, one per line, run from the worktree with `QA_DB_HOST`
   and `QA_DB_PORT` set to the candidate's address, e.g. for Flyway on PostgreSQL
   `psql -h "$QA_DB_HOST" -p "$QA_DB_PORT" -U app -d app -tAc "select version from
@@ -81,9 +83,12 @@ development, the dev-server scripts (`package.json`, `application*.yml`, `Makefi
 - `migrations`: globs of the project's migration files (with the spec-driven workflow: the migration
   paths of `.sdd/triggers.yaml`; otherwise the migration tool's folder). `**` crosses directories.
   `migration_id` (optional): a regex whose group 1, applied to each file name, gives the identifier
-  `applied_migrations` prints — `^V([0-9_.]+)__` for Flyway's versions (default: the file name
-  without its extension). The worktree's set and the database's set must be equal: one missing on
-  either side → a database of this QA's own.
+  `applied_migrations` prints — `^V([0-9_.]+)__` for Flyway's versions; the script turns each `_` of
+  the captured id into `.`, as Flyway does (`V1_1__x.sql` is version `1.1`). Without it, the
+  identifier is the file name without its extension, unchanged. The worktree's set and the database's
+  set must be equal: one missing on either side → a database of this QA's own. A change that adds or
+  edits a migration file (against `--base`, committed or not — an edited applied `V…` or a repeatable
+  `R__…` has no new id) always gets a database of its own.
 
 ## 3. Inventory and plan
 
@@ -104,11 +109,13 @@ start time and the ports already reserved.
 For each service the plan says `reuse` (with the port, and whether this QA started it) or `start`
 (with the reserved port, the compose project for a container, `default_port_taken_by` when the default
 port is held — by whom, from which project and worktree — and, for a database, `isolated` with the
-`reason`: the history differs, cannot be read, or `--pending-migration` declared a migration the
-globs cannot see). `migrations` lists the change's own migration files against `--base`.
+`reason`: the change adds or edits migrations, the history differs or cannot be read, the spec
+declares `migrations: []`, or `--pending-migration` declared a migration the globs cannot see).
+`migrations` lists the change's own migration files against `--base`.
 
 The script applies the mechanical rule: same project, not another worktree's QA, code services only
-from this worktree, a database only with an equal history, whatever the service's kind. **You judge
+from this worktree, a database only when the change carries no migration and the history is equal,
+whatever the service's kind. **You judge
 the rest** before reusing; any doubt → start your own instead (it costs a container, never another
 agent's afternoon):
 
@@ -163,7 +170,13 @@ cd <worktree>/<module> && QA launch --name <name> -- <the dev-server command>
 ```
 
 `launch` writes its own PID into `started.json` as a launcher of this QA, then becomes the command (same
-PID). Use the plan's port, wired to the chosen ports of the other services through command-line flags
+PID). The server must stay a descendant of it: a build tool that hands the run to a long-lived daemon
+detaches it, and `record` then refuses it. Gradle: `./gradlew bootRun --no-daemon` (or
+`org.gradle.daemon=false` for this run); the Kotlin compile daemon is harmless (it compiles, it does not
+serve). Maven (`./mvnw spring-boot:run`), `npm run`/`npx`, `uv run`, `cargo run` and `go run` keep their
+child attached. A wrapper that backgrounds the server itself (`nohup … &`, `docker compose up -d` for a
+process service, `pm2`, `forever`) detaches it the same way: run the server in the foreground under
+`launch`. Use the plan's port, wired to the chosen ports of the other services through command-line flags
 or environment variables (`--port`, `PORT=`, `SERVER_PORT=`, the database URL, the API URL the
 frontend calls, the allowed CORS origin when the frontend's port moved). Never edit a tracked
 configuration file for it: when a file is the only way, a gitignored local override the project already

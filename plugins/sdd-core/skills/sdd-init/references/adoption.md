@@ -155,9 +155,14 @@ project with a marker in both `CLAUDE.md` and `.claude/CLAUDE.md` gets a notice 
      not exist when the recorded commit had no such template), then `python3 <base
      directory>/scripts/refresh_merge.py merge --manifest <file> --old-version <recorded> --new-version
      <current>`. It checks every entry first — two paths that are the same file (a symlink) refused, a
-     file that is not UTF-8 or still holds conflict markers from an earlier refresh refused — and
+     file that is not UTF-8 refused, a file still holding a conflict-marker line neither template carries
+     (a leftover of an earlier refresh, fenced code blocks included; an example line the kit ships in a
+     code block is accepted) refused — and
      merges them all in memory with `git merge-file --diff3` (a CRLF file merged and written in CRLF);
      nothing is written unless every entry could be merged (exit 2 otherwise, the reason in the JSON).
+     The new contents are all staged in temporary files first, then put in place; a failure while
+     staging writes nothing, a failure while putting them in place exits 2 with `written` and
+     `not_written` — report both, never a partial refresh as done.
      It reports each file: `merged`, `unchanged`, `created` (a template new in the kit, absent from the
      project), `deleted_locally` (the project deleted a file the recorded commit had: not created
      again), `two_way` (exit 4: no base — `no-base-commit`, or `new-in-kit` when the project already

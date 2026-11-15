@@ -88,6 +88,8 @@ TOOL_EXECUTABLES = {
     "gopls",
     "rust-analyzer",
 }
+# Interpreters whose program is their first argument: for them the script's path is the program's path.
+INTERPRETERS = {"node", "bun", "deno", "python", "python3", "ruby", "perl", "sh", "bash", "zsh"}
 TOOL_FRAGMENTS = (
     "/Claude.app/",
     "/claude.app/",
@@ -378,15 +380,40 @@ def ancestry(pid):
     return chain
 
 
-def is_tool_process(command):
-    """Claude Code, a desktop app or an IDE helper: never a process a QA started."""
+def process_executable(pid):
+    """The executable path of a running process (`ps -o comm=`), or None."""
+    result = run(["ps", "-o", "comm=", "-p", str(pid)], environment=_c_locale())
+    if result is None or result[0] != 0 or not result[1].strip():
+        return None
+    return result[1].strip()
+
+
+def is_tool_process(command, executable=None):
+    """Claude Code, a desktop app or an IDE helper: never a process a QA started.
+
+    Only the program's path is judged — the executable, and an interpreter's script — never its other
+    arguments (a dev server given a path that happens to contain `Claude.app` is still a dev server)."""
     words = command.split()
     if not words:
         return True
-    executable = os.path.basename(words[0])
-    if executable in TOOL_EXECUTABLES:
-        return True
-    return any(fragment in command for fragment in TOOL_FRAGMENTS)
+    programs = [path for path in (executable, words[0]) if path]
+    if os.path.basename(words[0]) in INTERPRETERS or (executable and os.path.basename(executable) in INTERPRETERS):
+        programs.extend(words[1:2])
+    for program in programs:
+        if os.path.basename(program) in TOOL_EXECUTABLES:
+            return True
+        if any(fragment in program for fragment in TOOL_FRAGMENTS):
+            return True
+    return False
+
+
+BUILD_DAEMONS = ("org.gradle.launcher.daemon", "GradleDaemon", "KotlinCompileDaemon", "kotlin-daemon")
+
+
+def _is_build_daemon(pid):
+    """A build tool's long-lived daemon (Gradle, Kotlin): what it runs is detached from the shell that asked."""
+    identity = process_identity(pid)
+    return identity is not None and any(marker in identity[0] for marker in BUILD_DAEMONS)
 
 
 def group_members(group):
@@ -459,16 +486,36 @@ def reserve_port(port, here):
             owner = lock_owner(port)
             if owner == here["worktree"]:
                 return True
-            if _stale(owner):
-                try:
-                    os.remove(path)
-                except FileNotFoundError:
-                    pass
+            if _stale(owner) and _reclaim(path, owner):
                 continue
             return False
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
             json.dump({"worktree": here["worktree"], "created": time.time()}, handle)
         return True
+    return False
+
+
+def _reclaim(path, stale_owner):
+    """Take a stale lock out of the way: only the process whose rename succeeds may remove it, and only when
+    what it moved is still that stale lock — a fresh lock another QA put there meanwhile is put back."""
+    moved = "%s.stale-%d-%s" % (path, os.getpid(), os.urandom(4).hex())
+    try:
+        os.rename(path, moved)
+    except FileNotFoundError:
+        return True  # another QA reclaimed it first: try to create ours
+    try:
+        with open(moved, encoding="utf-8") as handle:
+            owner = json.load(handle).get("worktree") or ""
+    except (OSError, ValueError, AttributeError):
+        owner = ""
+    if owner == stale_owner:
+        os.remove(moved)
+        return True
+    try:
+        os.link(moved, path)  # someone else's fresh lock: put it back (fails if a third one exists)
+    except FileExistsError:
+        pass
+    os.remove(moved)
     return False
 
 
@@ -621,14 +668,15 @@ def worktree_migrations(worktree, globs):
     return [path for path in _matching(set(listed[1].splitlines()), globs) if os.path.isfile(os.path.join(worktree, path))]
 
 
-def migration_ids(paths, pattern):
-    """The migration identifiers of `paths`: group 1 of `pattern` on each file name."""
+def migration_ids(paths, pattern, normalise=False):
+    """The migration identifiers of `paths`: group 1 of `pattern` on each file name. With `normalise`
+    (a project's own `migration_id`), `_` becomes `.`: Flyway reads V1_1__x.sql as version 1.1."""
     expression = re.compile(pattern)
     ids = set()
     for path in paths:
         match = expression.search(os.path.basename(path))
         if match and match.group(1):
-            ids.add(match.group(1))
+            ids.add(match.group(1).replace("_", ".") if normalise else match.group(1))
     return ids
 
 
@@ -676,8 +724,9 @@ def _process_alive(entry):
 
 
 def decide(service, listing, started, forced_isolation, here, taken, migrations):
-    """Reuse a running service, or start one on a reserved port. A database is reused only when its applied
-    migrations equal the worktree's; isolation, once required, holds whatever the service's kind."""
+    """Reuse a running service, or start one on a reserved port. A database is reused only when the change
+    carries no migration and its applied migrations equal the worktree's; isolation, once required
+    (`forced_isolation` says why), holds whatever the service's kind."""
     name = service["name"]
     port = int(service["port"])
     shared = bool(service.get("shared"))
@@ -686,7 +735,7 @@ def decide(service, listing, started, forced_isolation, here, taken, migrations)
     kind = service.get("kind", "process")
     isolation_reasons = []
     if database and forced_isolation:
-        isolation_reasons.append("a migration was declared (--pending-migration)")
+        isolation_reasons.append(forced_isolation)
 
     def reuse_allowed(candidate_port):
         if not database:
@@ -761,8 +810,11 @@ def _validate_spec(spec, base):
             raise Refused("every service needs a name and an integer port: %r" % (service,))
     if spec.get("migrations") and not base:
         raise Refused("the spec declares migrations: --base <ref the change branches from> is required")
-    if any(service.get("database") for service in services) and not spec.get("migrations"):
-        raise Refused("a database service needs the spec's `migrations` globs (to compare with its history)")
+    if any(service.get("database") for service in services) and "migrations" not in spec:
+        raise Refused(
+            "a database service needs the spec's `migrations`: its globs, or [] when the schema is not managed by"
+            " migration files (the database is then never reused)"
+        )
 
 
 def plan(root, spec_path, base, force_pending):
@@ -777,13 +829,21 @@ def plan(root, spec_path, base, force_pending):
     present = worktree_migrations(here["worktree"], globs) if globs else []
     migrations = {
         "worktree": here["worktree"],
-        "ids": migration_ids(present, spec.get("migration_id") or DEFAULT_MIGRATION_ID),
+        "ids": migration_ids(present, spec.get("migration_id") or DEFAULT_MIGRATION_ID, bool(spec.get("migration_id"))),
     }
+    if force_pending:
+        forced = "a migration was declared (--pending-migration)"
+    elif changed:
+        forced = "the change adds or edits migrations (%s): the shared database is never migrated by a QA" % ", ".join(changed[:5])
+    elif "migrations" in spec and not globs:
+        forced = "the spec declares no migration files (`migrations: []`, schema managed elsewhere): never reused"
+    else:
+        forced = None
     started.setdefault("prepared_at", time.time())
     taken = taken_ports(listing)
     decisions = []
     for service in spec["services"]:
-        decision = decide(service, listing, started, force_pending, here, taken, migrations)
+        decision = decide(service, listing, started, forced, here, taken, migrations)
         if decision["action"] == "start":
             taken.add(decision["port"])
             started.setdefault("ports", [])
@@ -796,7 +856,7 @@ def plan(root, spec_path, base, force_pending):
         "docker": listing["docker"],
         "lsof": listing["lsof"],
         "migrations": changed,
-        "forced_isolation": force_pending,
+        "forced_isolation": forced,
         "port_locks": lock_directory(),
         "services": decisions,
     }
@@ -912,16 +972,24 @@ def record_process(root, name, port):
     identity = process_identity(pid)
     if identity is None:
         raise Refused("process %d is gone" % pid)
-    if is_tool_process(identity[0]):
+    if is_tool_process(identity[0], process_executable(pid)):
         raise Refused("pid %d is Claude Code, a desktop app or an IDE helper (%s): never a QA service" % (pid, identity[0][:120]))
     began = start_epoch(identity[1])
     if began is None or began < started["prepared_at"] - START_SLACK_SECONDS:
         raise Refused("pid %d started before this QA was prepared (%s): not started by this QA" % (pid, identity[1]))
     anchors = _trusted_anchors(started)
-    if not anchors.intersection(ancestry(pid)):
+    chain = ancestry(pid)
+    if not anchors.intersection(chain):
+        daemons = [ancestor for ancestor in chain[1:] if _is_build_daemon(ancestor)]
+        hint = ""
+        if daemons:
+            hint = (
+                "; it was started by a build daemon (pid %d): launch it without one, e.g. `./gradlew bootRun --no-daemon`"
+                % daemons[0]
+            )
         raise Refused(
-            "pid %d descends neither from the shell recording it nor from a `launch` of this QA: not started by this QA"
-            % pid
+            "pid %d descends neither from the shell recording it nor from a `launch` of this QA: not started by this QA%s"
+            % (pid, hint)
         )
     try:
         group = os.getpgid(pid)

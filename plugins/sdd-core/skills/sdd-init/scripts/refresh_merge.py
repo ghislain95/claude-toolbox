@@ -44,7 +44,7 @@ MARKER = re.compile(
     r"<!--\s*(?:claude-toolbox|sdd-kit): installed (?P<version>\S+)(?: \((?P<sha>[^)]*)\))? on (?P<date>\S+)"
     r"(?: — options: (?P<options>.*?))?(?: — autonomy: [^ ]+)?\s*-->"
 )
-CONFLICT_LINE = re.compile(rb"^(?:<<<<<<<|>>>>>>>)(?: |\r?$)", re.MULTILINE)
+CONFLICT_LINE = re.compile(rb"^(?:<<<<<<<|>>>>>>>)(?: .*)?$")
 NETWORK_TIMEOUT_SECONDS = 120
 
 
@@ -200,6 +200,21 @@ def _read(path, role, entry_path):
     return data
 
 
+def _marker_lines(data):
+    return [line for line in data.replace(b"\r\n", b"\n").split(b"\n") if CONFLICT_LINE.match(line)]
+
+
+def _leftover_markers(ours, base, theirs):
+    """Line numbers of conflict-marker lines in `ours` that neither template carries.
+
+    A marker-looking line the kit itself ships (an example in a fenced code block of a template) is in base
+    or theirs and is accepted; a leftover conflict of an earlier refresh is not, wherever it sits — fenced
+    blocks included, since `git merge-file` writes conflicts wherever the edits are."""
+    shipped = set(_marker_lines(theirs)) | set(_marker_lines(base or b""))
+    lines = ours.replace(b"\r\n", b"\n").split(b"\n")
+    return [number for number, line in enumerate(lines, 1) if CONFLICT_LINE.match(line) and line not in shipped]
+
+
 def _to_line_endings(data, crlf):
     lf = data.replace(b"\r\n", b"\n")
     return lf.replace(b"\n", b"\r\n") if crlf else lf
@@ -250,9 +265,12 @@ def plan_entry(entry, old_label, new_label):
         raise UsageError("the new template of %s is missing: %s" % (path, entry["theirs"]))
     theirs = _read(entry["theirs"], "the new template", path)
     ours = _read(path, "the project's file", path) if os.path.isfile(path) else None
-    if ours is not None and CONFLICT_LINE.search(ours):
-        raise UsageError("%s still holds conflict markers: settle them before a new refresh" % path)
     base = _read(base_path, "the base template", path) if base_path is not None and os.path.isfile(base_path) else None
+    leftover = _leftover_markers(ours, base, theirs) if ours is not None else []
+    if leftover:
+        raise UsageError(
+            "%s still holds conflict markers (line %s): settle them before a new refresh" % (path, ", ".join(map(str, leftover[:5])))
+        )
     if ours is None:
         if base_path is None:
             return {"path": path, "status": "two-way", "reason": "no-base-commit", "hunks": _hunks(path, b"", theirs)}, None
@@ -271,6 +289,49 @@ def plan_entry(entry, old_label, new_label):
     if result == ours:
         return {"path": path, "status": "unchanged"}, None
     return {"path": path, "status": "merged"}, result
+
+
+class WriteError(Exception):
+    """Writing failed: `written` lists the files already replaced, `not_written` the others."""
+
+    def __init__(self, reason, written, not_written):
+        super().__init__(reason)
+        self.written = written
+        self.not_written = not_written
+
+
+def _write_all(files):
+    """Stage every new content in a temporary file next to its target, then replace the targets one by one.
+    A failure while staging writes nothing; a failure while replacing names what was and was not written."""
+    staged = []
+    try:
+        for target, path, data in files:
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            handle, temporary = tempfile.mkstemp(prefix=".refresh-", dir=os.path.dirname(target))
+            staged.append((target, path, temporary))
+            with os.fdopen(handle, "wb") as sink:
+                sink.write(data)
+            if os.path.exists(target):
+                shutil.copymode(target, temporary)
+    except OSError as error:
+        for _, _, temporary in staged:
+            try:
+                os.remove(temporary)
+            except OSError:
+                pass
+        raise WriteError("cannot stage the merged files (%s): nothing written" % error, [], [path for _, path, _ in files])
+    written = []
+    for index, (target, path, temporary) in enumerate(staged):
+        try:
+            os.replace(temporary, target)
+        except OSError as error:
+            for _, _, left in staged[index:]:
+                try:
+                    os.remove(left)
+                except OSError:
+                    pass
+            raise WriteError("cannot replace %s (%s)" % (path, error), written, [item[1] for item in staged[index:]])
+        written.append(path)
 
 
 def merge(manifest_path, old_version, new_version):
@@ -292,17 +353,7 @@ def merge(manifest_path, old_version, new_version):
                 raise UsageError("%s and %s are the same file (%s)" % (targets[target], path, target))
             targets[target] = path
     planned = [plan_entry(entry, old_label, new_label) for entry in entries]
-    for outcome, data in planned:
-        if data is None:
-            continue
-        target = _target(outcome["path"])
-        os.makedirs(os.path.dirname(target), exist_ok=True)
-        handle, temporary = tempfile.mkstemp(prefix=".refresh-", dir=os.path.dirname(target))
-        with os.fdopen(handle, "wb") as sink:
-            sink.write(data)
-        if os.path.exists(target):
-            shutil.copymode(target, temporary)
-        os.replace(temporary, target)
+    _write_all([(_target(outcome["path"]), outcome["path"], data) for outcome, data in planned if data is not None])
     report = {"merged": [], "unchanged": [], "created": [], "deleted_locally": [], "two_way": [], "conflicts": []}
     keys = {
         "merged": "merged",
@@ -350,6 +401,9 @@ def main(argv=None):
             code = 1 if output["conflicts"] else 4 if output["two_way"] else 0
     except UsageError as error:
         print(json.dumps({"error": str(error)}))
+        return 2
+    except WriteError as error:
+        print(json.dumps({"error": str(error), "written": error.written, "not_written": error.not_written}))
         return 2
     print(json.dumps(output, indent=2))
     return code

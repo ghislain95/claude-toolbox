@@ -306,11 +306,14 @@ class Machine(unittest.TestCase):
         """`plan` opens the QA: what it records afterwards must have started after this."""
         self.qa("plan", "--spec", self.simple_spec({"name": "x", "port": self.port + 3}), root=root)
 
-    def migration(self, worktree, name):
+    def migration(self, worktree, name, content="select 1;\n", commit=False):
         directory = os.path.join(worktree, "backend", "migration")
         os.makedirs(directory, exist_ok=True)
         with open(os.path.join(directory, name), "w") as handle:
-            handle.write("select 1;\n")
+            handle.write(content)
+        if commit:
+            git(worktree, "add", "backend/migration/" + name)
+            git(worktree, "commit", "-q", "-m", "migration " + name)
 
     def shared_database(self, port=None):
         self.container(full_id("a"), "alpha-postgres", "alpha", os.path.join(self.alpha, "infra"), "postgres", "0.0.0.0:%d->5432/tcp" % (port or self.port))
@@ -384,22 +387,35 @@ class GlobTest(unittest.TestCase):
     def test_migration_ids(self):
         self.assertEqual(qa_env.migration_ids(["m/V1__a.sql", "m/V2__b.sql"], qa_env.DEFAULT_MIGRATION_ID), {"V1__a", "V2__b"})
         self.assertEqual(qa_env.migration_ids(["m/V1_2__a.sql", "m/README"], r"^V([0-9_]+)__"), {"1_2"})
+        self.assertEqual(qa_env.migration_ids(["m/V1_2__a.sql", "m/V3__b.sql"], r"^V([0-9_.]+)__", True), {"1.2", "3"}, "Flyway: V1_2 is 1.2")
 
 
 class ToolProcessTest(unittest.TestCase):
     def test_claude_code_apps_and_ide_helpers_are_never_qa_services(self):
-        for command in (
-            "claude --resume x",
-            "/Users/u/Library/Application Support/Claude/claude-code/2.1.325/x/claude.app/Contents/MacOS/claude --output-format stream-json",
-            "node /usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js",
-            "/Applications/IntelliJ IDEA.app/Contents/MacOS/idea",
-            "/opt/homebrew/bin/copilot-language-server --stdio",
-            "node /x/node_modules/typescript/lib/tsserver.js",
-            "",
+        desktop = "/Users/u/Library/Application Support/Claude/claude-code/2.1.325/x/claude.app/Contents/MacOS/claude"
+        for command, executable in (
+            ("claude --resume x", None),
+            (desktop + " --output-format stream-json", desktop),
+            ("node /usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js", "/usr/local/bin/node"),
+            ("/Applications/IntelliJ IDEA.app/Contents/MacOS/idea", "/Applications/IntelliJ IDEA.app/Contents/MacOS/idea"),
+            ("/opt/homebrew/bin/copilot-language-server --stdio", None),
+            ("node /x/node_modules/typescript/lib/tsserver.js", None),
+            ("", None),
         ):
-            self.assertTrue(qa_env.is_tool_process(command), command)
+            self.assertTrue(qa_env.is_tool_process(command, executable), command)
         for command in ("node /w/node_modules/.bin/vite --port 5174", "java -jar backend.jar", "python3 -m http.server"):
             self.assertFalse(qa_env.is_tool_process(command), command)
+
+    def test_only_the_program_path_is_judged_never_the_arguments(self):
+        for command in (
+            "node /w/node_modules/.bin/vite --config /Users/u/Claude.app/vite.config.ts",
+            "java -Dlog=/x/tsserver -jar backend.jar",
+            "python3 -m http.server --directory /Applications/Cursor.app/x",
+            "/usr/bin/java -cp /a/language-server.jar App",
+        ):
+            self.assertFalse(qa_env.is_tool_process(command, command.split()[0]), command)
+        self.assertTrue(qa_env.is_tool_process("x --serve", "/Applications/Claude.app/Contents/MacOS/x"), "the executable ps reports")
+        self.assertTrue(qa_env.is_tool_process("MainThread", "/Applications/IntelliJ IDEA.app/Contents/MacOS/idea"))
 
 
 class FreePortTest(Machine):
@@ -440,6 +456,33 @@ class FreePortTest(Machine):
         with open(os.path.join(self.locks, str(self.port + 5)), "w") as handle:
             handle.write("not json")
         self.assertEqual(qa_env.free_port(self.port + 5, set(), other, reserve=True), self.port + 6, "an unreadable lock is kept")
+
+    def test_two_qas_reclaiming_one_stale_lock_cannot_both_win(self):
+        """B saw the stale lock and is about to move it; A reclaims it and locks the port first."""
+        a = {"worktree": self.worktree, "project": self.alpha}
+        b = {"worktree": self.other_worktree, "project": self.alpha}
+        os.makedirs(self.locks, exist_ok=True)
+        lock = os.path.join(self.locks, str(self.port))
+        with open(lock, "w") as handle:
+            json.dump({"worktree": os.path.join(self.root, "gone")}, handle)
+        real_rename = os.rename
+        state = {"a": None}
+
+        def interleaved(source, destination):
+            if source == lock and state["a"] is None:
+                os.rename = real_rename
+                state["a"] = qa_env.reserve_port(self.port, a)
+                os.rename = interleaved
+            real_rename(source, destination)
+
+        os.rename = interleaved
+        try:
+            b_holds = qa_env.reserve_port(self.port, b)
+        finally:
+            os.rename = real_rename
+        self.assertEqual((state["a"], b_holds), (True, False))
+        self.assertEqual(qa_env.lock_owner(self.port), self.worktree)
+        self.assertEqual(sorted(os.listdir(self.locks)), [str(self.port)], "no moved lock left behind")
 
     def test_no_lock_directory_is_refused(self):
         os.environ["QA_PORT_LOCKS"] = os.path.join(self.root, "README-file")
@@ -497,22 +540,46 @@ class PlanTest(Machine):
         self.assert_nothing_stopped()
 
     def test_a_shared_database_is_reused_only_when_its_history_equals_the_worktrees_migrations(self):
+        """Migrations already on the base (`--base HEAD`: the change carries none) are compared with the history."""
         self.shared_database()
-        self.migration(self.worktree, "V1__init.sql")
+        self.migration(self.worktree, "V1__init.sql", commit=True)
         spec = self.write_spec(applied="printf 'V1__init\\n'")
-        database = self.service(self.qa("plan", "--spec", spec, "--base", "main"), "db")
+        database = self.service(self.qa("plan", "--spec", spec, "--base", "HEAD"), "db")
         self.assertEqual(database, {"name": "db", "action": "reuse", "port": self.port, "started_by_this_qa": False, "container": "alpha-postgres"})
-        self.migration(self.worktree, "V2__add.sql")
-        database = self.service(self.qa("plan", "--spec", spec, "--base", "main"), "db")
+        self.migration(self.worktree, "V2__add.sql", commit=True)
+        database = self.service(self.qa("plan", "--spec", spec, "--base", "HEAD"), "db")
         self.assertEqual((database["action"], database["isolated"]), ("start", True))
         self.assertIn("lacks the worktree's migrations V2__add", database["reason"])
         self.assert_nothing_stopped()
 
+    def test_a_change_that_adds_or_edits_a_migration_never_reuses_the_shared_database(self):
+        self.shared_database()
+        self.migration(self.worktree, "V1__init.sql", "create table a(x int);\n", commit=True)
+        self.migration(self.worktree, "R__views.sql", "create view v as select x from a;\n", commit=True)
+        spec = self.write_spec(applied="printf '1\\n'", extra={"migration_id": "^V([0-9_.]+)__"})
+        self.assertEqual(self.service(self.qa("plan", "--spec", spec, "--base", "HEAD"), "db")["action"], "reuse")
+        self.migration(self.worktree, "V1__init.sql", "create table a(x int, y int);\n")
+        database = self.service(self.qa("plan", "--spec", spec, "--base", "HEAD"), "db")
+        self.assertEqual((database["action"], database["isolated"]), ("start", True), "an applied migration edited: same ids")
+        self.assertIn("adds or edits migrations (backend/migration/V1__init.sql)", database["reason"])
+        git(self.worktree, "checkout", "--", "backend/migration/V1__init.sql")
+        self.migration(self.worktree, "R__views.sql", "create view v as select 1;\n")
+        database = self.service(self.qa("plan", "--spec", spec, "--base", "HEAD"), "db")
+        self.assertEqual(database["action"], "start", "a repeatable migration edited: it has no version at all")
+        self.assertIn("R__views.sql", database["reason"])
+
+    def test_a_database_whose_schema_no_migration_file_manages_is_never_reused(self):
+        self.shared_database()
+        spec = self.write_spec(applied="true", extra={"migrations": []})
+        database = self.service(self.qa("plan", "--spec", spec), "db")
+        self.assertEqual((database["action"], database["isolated"]), ("start", True))
+        self.assertIn("declares no migration files", database["reason"])
+
     def test_a_database_ahead_of_the_worktree_is_not_reused(self):
         self.shared_database()
-        self.migration(self.worktree, "V1__init.sql")
+        self.migration(self.worktree, "V1__init.sql", commit=True)
         spec = self.write_spec(applied="printf 'V1__init\\nV9__later\\n'")
-        database = self.service(self.qa("plan", "--spec", spec, "--base", "main"), "db")
+        database = self.service(self.qa("plan", "--spec", spec, "--base", "HEAD"), "db")
         self.assertEqual(database["action"], "start")
         self.assertIn("migrations the worktree lacks: V9__later", database["reason"])
 
@@ -527,12 +594,12 @@ class PlanTest(Machine):
 
     def test_the_history_command_reads_the_candidates_port_and_the_id_pattern_applies(self):
         self.shared_database(self.port + 7)
-        self.migration(self.worktree, "V1_2__init.sql")
+        self.migration(self.worktree, "V1_2__init.sql", commit=True)
         spec = self.write_spec(
-            applied='test "$QA_DB_PORT" = %d && test "$QA_DB_HOST" = 127.0.0.1 && printf "1_2\\n"' % (self.port + 7),
-            extra={"migration_id": "^V([0-9_]+)__"},
+            applied='test "$QA_DB_PORT" = %d && test "$QA_DB_HOST" = 127.0.0.1 && printf "1.2\\n"' % (self.port + 7),
+            extra={"migration_id": "^V([0-9_.]+)__"},
         )
-        database = self.service(self.qa("plan", "--spec", spec, "--base", "main"), "db")
+        database = self.service(self.qa("plan", "--spec", spec, "--base", "HEAD"), "db")
         self.assertEqual((database["action"], database["port"]), ("reuse", self.port + 7))
 
     def test_a_declared_migration_isolates_even_a_compatible_database(self):
@@ -699,6 +766,20 @@ class RecordProcessTest(Machine):
         for process in (early, late, nested):
             self.assertIsNone(process.poll())
 
+    @unittest.skipUnless(sys.platform == "darwin", "`ps -o comm` gives the full executable path on macOS only")
+    def test_the_desktop_apps_claude_binary_is_recognised_by_its_executable_path(self):
+        """Its path holds a space (`Application Support`): only the executable `ps` reports shows it whole."""
+        self.open_qa()
+        directory = os.path.join(self.root, "Library", "Application Support", "Claude", "claude-code")
+        os.makedirs(directory)
+        binary = os.path.join(directory, "x")
+        os.symlink(shutil.which("sleep"), binary)
+        process = subprocess.Popen([binary, "120"], cwd=os.path.join(self.worktree, "backend"))
+        self.processes.append(process)
+        self.wait_identity(process.pid)
+        self.listener(process.pid, "x", self.port, os.path.join(self.worktree, "backend"))
+        self.assertIn("Claude Code", self.qa("record", "process", "--name", "backend", "--port", str(self.port), expect=2)["error"])
+
     def test_a_process_started_before_the_qa_is_refused(self):
         process = self.spawn(os.path.join(self.worktree, "backend"))
         time.sleep(1.2)
@@ -749,6 +830,28 @@ class RecordProcessTest(Machine):
         self.open_qa()
         self.listener(process.pid, "python3", self.port, os.path.join(self.worktree, "backend"))
         self.qa("record", "process", "--name", "backend", "--port", str(self.port))
+
+    def test_a_process_started_by_a_build_daemon_is_refused_with_the_no_daemon_hint(self):
+        """`./gradlew bootRun` hands the run to the Gradle daemon: the JVM descends from the daemon, not the launch."""
+        self.open_qa()
+        tools = os.path.join(self.root, "tools")
+        os.makedirs(tools, exist_ok=True)
+        daemon = os.path.join(tools, "GradleDaemon")
+        os.symlink(shutil.which("bash"), daemon)
+        child_file = os.path.join(self.root, "child.pid")
+        daemon_pid = self.spawn_orphan(
+            os.path.join(self.worktree, "backend"), daemon, "-c", 'sleep 120 & echo $! > "$0"; wait', child_file
+        )
+        deadline = time.monotonic() + 5
+        while not (os.path.exists(child_file) and open(child_file).read().strip()) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        child = int(open(child_file).read())
+        self.addCleanup(self.kill_quietly, child)
+        self.wait_identity(child)
+        self.listener(child, "java", self.port, os.path.join(self.worktree, "backend"))
+        error = self.qa("record", "process", "--name", "backend", "--port", str(self.port), expect=2)["error"]
+        self.assertIn("build daemon (pid %d)" % daemon_pid, error)
+        self.assertIn("--no-daemon", error)
 
     def test_launch_needs_an_open_qa(self):
         self.qa("launch", "--name", "backend", "--", "true", expect=2)
