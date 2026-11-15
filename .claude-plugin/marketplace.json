@@ -26,6 +26,12 @@
       "category": "skill"
     },
     {
+      "name": "local-qa",
+      "source": "./plugins/local-qa",
+      "description": "/local-qa:qa-prepare: local QA environment for a change on a machine shared by parallel projects and agents (reuses what is compatible, starts the rest on free ports, stops only what it started), and the owner's QA brief",
+      "category": "skill"
+    },
+    {
       "name": "openspec-cockpit",
       "source": "./mods/openspec-cockpit",
       "description": "Desktop app only: OpenSpec cockpit pane (next action, cycle timeline, task groups, decisions), gate alerts, status line. Pairs with the `cockpit` option of sdd-init.",

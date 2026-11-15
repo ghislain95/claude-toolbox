@@ -11,11 +11,16 @@ How to publish a new version, and what users experience.
    claude plugin validate plugins/sdd-core
    claude plugin validate plugins/sdd-ui
    claude plugin validate plugins/handoff
+   claude plugin validate plugins/local-qa
    bash plugins/sdd-core/skills/sdd-init/templates/claude/hooks/block-git-writes.test.sh
    bash plugins/sdd-core/hooks/check-kit-version.test.sh
    uv run --with pyyaml python .sdd/bin/test_merge_conditions.py
+   python3 plugins/sdd-core/skills/sdd-init/scripts/test_refresh_merge.py
+   python3 plugins/local-qa/skills/qa-prepare/scripts/test_qa_env.py
    ```
-   The same suites run in CI ([`tooling.yml`](.github/workflows/tooling.yml)), which also checks
+   The same suites run in CI ([`tooling.yml`](.github/workflows/tooling.yml); the last two in its
+   `plugin-scripts` job, which this branch adds — a workflow change, so the owner pushes it). CI also
+   checks
    that `.sdd/bin/` is byte-identical to `plugins/sdd-core/skills/sdd-init/templates/sdd/bin/`
    (`cmp` of the two Python files there; `TemplateCopyTest` of the matcher's suite compares every
    file of the folder, `deploy-guard.sh` included, with its mode): change the template, then copy it.
@@ -32,7 +37,22 @@ How to publish a new version, and what users experience.
 4. **Write the entry** in [`CHANGELOG.md`](CHANGELOG.md): what changed, and whether projects need
    `/sdd-core:sdd-init --refresh` to benefit from it (template changes do; a new skill doesn't).
 5. **Pull request**, review, merge into `main`. The marketplace serves `main`.
-6. Optional: `claude plugin tag` creates a `<plugin>--v<version>` git tag, needed only if another
+6. **Tag the release of `sdd-core`** on the merge commit that ships the new version (an annotated
+   tag, pushed by the owner), for people reading the history:
+   ```bash
+   git fetch origin && git log --format='%h %s' origin/main | head   # the merge commit of the release PR
+   git tag -a sdd-core-v<version> <merge commit> -m "sdd-core <version>"
+   git push origin sdd-core-v<version>
+   ```
+   The refresh does not read tags. Each project's install marker records the toolbox **commit** its
+   files came from (`claude-toolbox: installed <version> (<commit>) on <date>`, read from Claude Code's
+   `installed_plugins.json`), and `/sdd-core:sdd-init --refresh` fetches the templates of exactly that
+   commit as the base of its three-way merge: a version number names several template sets whenever
+   `main` changes templates without a bump (0.3.0 shipped five), a commit names one. Markers written
+   before 0.4.0 carry no commit: those projects are refreshed two ways once, then carry one. So a
+   commit of `main` that a project may have installed must stay reachable: never force-push or rewrite
+   `main`. Tag to create after this branch is merged: `sdd-core-v0.4.0` on its merge commit.
+7. Optional: `claude plugin tag` creates a `<plugin>--v<version>` git tag, needed only if another
    plugin wants to depend on a version range of this one.
 
 ## The desktop mods

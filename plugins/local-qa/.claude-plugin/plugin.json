@@ -1,0 +1,9 @@
+{
+  "name": "local-qa",
+  "version": "0.1.0",
+  "description": "/local-qa:qa-prepare prepares a local QA environment for a change on a machine shared by parallel projects and agents: inventories what runs (containers, listening ports, their project and worktree), reuses what is compatible, starts the rest on free ports, records what it started and stops only that, and hands the owner a QA brief. Works in any project, with or without the spec-driven workflow.",
+  "author": {
+    "name": "ghislain95"
+  },
+  "license": "MIT"
+}

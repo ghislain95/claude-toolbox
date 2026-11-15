@@ -3,6 +3,8 @@
 # --- Claude Code / SDD tooling ---
 # Handoff documents between sessions (/handoff:passation), per developer
 /.claude/passation/
+# Local QA environments (/local-qa:qa-prepare): what was started, captures, per worktree
+/.claude/qa/
 # Local permissions and tokens (absolute paths, GH_TOKEN) — settings.json, by contrast, is shared
 /.claude/settings.local.json
 # Worktrees created by the app for parallel sessions
