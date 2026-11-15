@@ -185,8 +185,13 @@ class Machine(unittest.TestCase):
     def tearDown(self):
         for process in self.processes:
             if process.poll() is None:
-                process.kill()
+                try:
+                    os.killpg(process.pid, 9)  # its own session: a script's children go with it
+                except OSError:
+                    process.kill()
                 process.wait()
+            if process.stdout is not None:
+                process.stdout.close()
 
     # helpers
 
@@ -227,13 +232,17 @@ class Machine(unittest.TestCase):
             )
         arguments = [sys.executable, "-c", code]
         if name:
-            # A program called `name` (a link to sleep): what ps shows for Claude Code's own binary.
+            # A program called `name`, as ps shows Claude Code's own binary. A shell script, not a link to
+            # sleep: a multi-call coreutils (Ubuntu 26.04's) dispatches on the name it is called by and
+            # exits at once when that name is `claude`.
             tools = os.path.join(self.root, "tools")
             os.makedirs(tools, exist_ok=True)
-            link = os.path.join(tools, name)
-            if not os.path.exists(link):
-                os.symlink(shutil.which("sleep"), link)
-            arguments = [link, "120"]
+            script = os.path.join(tools, name)
+            if not os.path.exists(script):
+                with open(script, "w") as handle:
+                    handle.write("#!/bin/sh\nsleep 120\n")
+                os.chmod(script, 0o755)
+            arguments = [script]
         process = subprocess.Popen(
             arguments, cwd=cwd, start_new_session=new_session, stdout=subprocess.PIPE if (with_child or ignore_term) else None
         )
@@ -390,6 +399,34 @@ class GlobTest(unittest.TestCase):
         self.assertEqual(qa_env.migration_ids(["m/V1_2__a.sql", "m/V3__b.sql"], r"^V([0-9_.]+)__", True), {"1.2", "3"}, "Flyway: V1_2 is 1.2")
 
 
+class StartTimeTest(unittest.TestCase):
+    def test_a_start_in_the_second_plan_ran_counts_as_after_it_the_second_before_does_not(self):
+        prepared = 1700000000.6
+        started = {"prepared_at": prepared}
+        same_second = time.strftime("%a %b %d %H:%M:%S %Y", time.localtime(1700000000))
+        second_before = time.strftime("%a %b %d %H:%M:%S %Y", time.localtime(1699999999))
+        self.assertTrue(qa_env.started_after(os.getpid(), same_second, started))
+        self.assertFalse(qa_env.started_after(os.getpid(), second_before, started))
+        self.assertFalse(qa_env.started_after(os.getpid(), "not a date", started))
+
+    @unittest.skipUnless(os.path.exists("/proc/uptime"), "Linux /proc only")
+    def test_on_linux_the_boot_clock_decides(self):
+        mine = qa_env._boot_seconds_of(os.getpid())
+        now = qa_env.boot_seconds_now()
+        self.assertTrue(mine is not None and now is not None and mine <= now)
+        far_future = "Sat Jan  1 00:00:00 2100"
+        self.assertFalse(qa_env.started_after(os.getpid(), far_future, {"prepared_at": 0, "prepared_boot": now + 5}))
+        self.assertTrue(qa_env.started_after(os.getpid(), "Thu Jan  1 00:00:00 1970", {"prepared_at": 4e9, "prepared_boot": mine}))
+        tick = 1.0 / os.sysconf("SC_CLK_TCK")
+        self.assertTrue(qa_env.started_after(os.getpid(), "", {"prepared_at": 4e9, "prepared_boot": mine + tick / 2}), "same tick")
+        self.assertFalse(qa_env.started_after(os.getpid(), "", {"prepared_at": 0, "prepared_boot": mine + 2 * tick}))
+        self.assertIn("prepared_boot", qa_env.qa_clock())
+
+    def test_the_executable_is_a_full_path(self):
+        executable = qa_env.process_executable(os.getpid())
+        self.assertTrue(executable and os.path.isabs(executable), "a path, not Linux's 15-character comm: %r" % executable)
+
+
 class ToolProcessTest(unittest.TestCase):
     def test_claude_code_apps_and_ide_helpers_are_never_qa_services(self):
         desktop = "/Users/u/Library/Application Support/Claude/claude-code/2.1.325/x/claude.app/Contents/MacOS/claude"
@@ -405,6 +442,11 @@ class ToolProcessTest(unittest.TestCase):
             self.assertTrue(qa_env.is_tool_process(command, executable), command)
         for command in ("node /w/node_modules/.bin/vite --port 5174", "java -jar backend.jar", "python3 -m http.server"):
             self.assertFalse(qa_env.is_tool_process(command), command)
+
+    def test_interpreters_are_recognised_by_their_versioned_names(self):
+        self.assertTrue(qa_env.is_tool_process("/bin/sh /x/tools/claude 120", "/usr/bin/dash"))
+        self.assertTrue(qa_env.is_tool_process("python3.12 /x/claude-code/cli.py", "/usr/bin/python3.12"))
+        self.assertFalse(qa_env.is_tool_process("python3.12 /x/app.py", "/usr/bin/python3.12"))
 
     def test_only_the_program_path_is_judged_never_the_arguments(self):
         for command in (
@@ -843,9 +885,15 @@ class RecordProcessTest(Machine):
             os.path.join(self.worktree, "backend"), daemon, "-c", 'sleep 120 & echo $! > "$0"; wait', child_file
         )
         deadline = time.monotonic() + 5
-        while not (os.path.exists(child_file) and open(child_file).read().strip()) and time.monotonic() < deadline:
+        def child_pid():
+            if not os.path.exists(child_file):
+                return ""
+            with open(child_file) as handle:
+                return handle.read().strip()
+
+        while not child_pid() and time.monotonic() < deadline:
             time.sleep(0.05)
-        child = int(open(child_file).read())
+        child = int(child_pid())
         self.addCleanup(self.kill_quietly, child)
         self.wait_identity(child)
         self.listener(child, "java", self.port, os.path.join(self.worktree, "backend"))

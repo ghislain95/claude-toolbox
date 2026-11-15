@@ -47,7 +47,6 @@ QA_PROJECT_PREFIX = "qa-"
 PORT_SEARCH_LIMIT = 200
 COMMAND_TIMEOUT_SECONDS = 30
 ANCESTRY_LIMIT = 64
-START_SLACK_SECONDS = 1
 FULL_CONTAINER_ID = re.compile(r"[0-9a-f]{64}")
 DEFAULT_MIGRATION_ID = r"^(.*?)(?:\.[^./]*)?$"
 
@@ -89,7 +88,7 @@ TOOL_EXECUTABLES = {
     "rust-analyzer",
 }
 # Interpreters whose program is their first argument: for them the script's path is the program's path.
-INTERPRETERS = {"node", "bun", "deno", "python", "python3", "ruby", "perl", "sh", "bash", "zsh"}
+INTERPRETERS = re.compile(r"^(?:node|bun|deno|python[0-9.]*|ruby|perl|sh|bash|dash|zsh)$")
 TOOL_FRAGMENTS = (
     "/Claude.app/",
     "/claude.app/",
@@ -363,6 +362,50 @@ def start_epoch(lstart):
         return None
 
 
+def _boot_seconds_of(pid):
+    """Linux: when `pid` started, in seconds since boot (/proc/<pid>/stat starttime, clock ticks), or None."""
+    try:
+        with open("/proc/%d/stat" % pid, encoding="utf-8") as handle:
+            fields = handle.read().rsplit(")", 1)[1].split()
+        return int(fields[19]) / os.sysconf("SC_CLK_TCK")
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def boot_seconds_now():
+    """Linux: seconds since boot now (/proc/uptime), the clock of /proc/<pid>/stat; None elsewhere."""
+    try:
+        with open("/proc/uptime", encoding="utf-8") as handle:
+            return float(handle.read().split()[0])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def qa_clock():
+    """When this QA opens, on every clock `started_after` can compare with."""
+    clock = {"prepared_at": time.time()}
+    boot = boot_seconds_now()
+    if boot is not None:
+        clock["prepared_boot"] = boot
+    return clock
+
+
+def started_after(pid, lstart, started):
+    """True when process `pid` started after this QA opened — on the finest clock available.
+
+    Linux: its start in clock ticks since boot against /proc/uptime at `plan`, the same clock (`ps`'s
+    lstart there is btime + ticks, whole seconds, and can read a second or more before the wall clock).
+    Elsewhere: `ps`'s lstart, whole seconds, against `plan`'s wall-clock time floored to the second: a
+    process started in the very second `plan` ran counts as after it, one from the second before does not."""
+    if started.get("prepared_boot") is not None:
+        began = _boot_seconds_of(pid)
+        if began is not None:
+            tick = 1.0 / os.sysconf("SC_CLK_TCK")
+            return began >= started["prepared_boot"] - tick
+    began = start_epoch(lstart)
+    return began is not None and began >= int(started["prepared_at"])
+
+
 def parent_of(pid):
     result = run(["ps", "-o", "ppid=", "-p", str(pid)])
     if result is None or result[0] != 0 or not result[1].strip().isdigit():
@@ -381,7 +424,12 @@ def ancestry(pid):
 
 
 def process_executable(pid):
-    """The executable path of a running process (`ps -o comm=`), or None."""
+    """The executable path of a running process, or None: Linux's /proc/<pid>/exe (`ps -o comm` there is
+    the name cut to 15 characters, not a path); elsewhere `ps -o comm=`, the full path on macOS."""
+    try:
+        return os.readlink("/proc/%d/exe" % pid)
+    except OSError:
+        pass
     result = run(["ps", "-o", "comm=", "-p", str(pid)], environment=_c_locale())
     if result is None or result[0] != 0 or not result[1].strip():
         return None
@@ -397,7 +445,7 @@ def is_tool_process(command, executable=None):
     if not words:
         return True
     programs = [path for path in (executable, words[0]) if path]
-    if os.path.basename(words[0]) in INTERPRETERS or (executable and os.path.basename(executable) in INTERPRETERS):
+    if INTERPRETERS.match(os.path.basename(words[0])) or (executable and INTERPRETERS.match(os.path.basename(executable))):
         programs.extend(words[1:2])
     for program in programs:
         if os.path.basename(program) in TOOL_EXECUTABLES:
@@ -839,7 +887,8 @@ def plan(root, spec_path, base, force_pending):
         forced = "the spec declares no migration files (`migrations: []`, schema managed elsewhere): never reused"
     else:
         forced = None
-    started.setdefault("prepared_at", time.time())
+    if not started.get("prepared_at"):
+        started.update(qa_clock())
     taken = taken_ports(listing)
     decisions = []
     for service in spec["services"]:
@@ -974,8 +1023,7 @@ def record_process(root, name, port):
         raise Refused("process %d is gone" % pid)
     if is_tool_process(identity[0], process_executable(pid)):
         raise Refused("pid %d is Claude Code, a desktop app or an IDE helper (%s): never a QA service" % (pid, identity[0][:120]))
-    began = start_epoch(identity[1])
-    if began is None or began < started["prepared_at"] - START_SLACK_SECONDS:
+    if not started_after(pid, identity[1], started):
         raise Refused("pid %d started before this QA was prepared (%s): not started by this QA" % (pid, identity[1]))
     anchors = _trusted_anchors(started)
     chain = ancestry(pid)
@@ -1123,6 +1171,7 @@ def cleanup(root, dry_run):
         started["ports"] = [port for port in started.get("ports", []) if port in still_used]
         if not remaining:
             started.pop("prepared_at", None)
+            started.pop("prepared_boot", None)
             started.pop("launchers", None)
         save_started(here, started)
     return {
