@@ -107,12 +107,12 @@ export function bandLine(items: HudItem[], background: number): string {
   return [...parts, ...(tasks === null ? [] : [`⚙ ${tasks}`])].join(' · ')
 }
 
-/** About how wide the band draws each part, in CSS pixels (measured on the desktop, 14 px type). */
-const VALUE_PX = 7.6
-const LABEL_PX = 6.0
-const GAUGE_PX = 20
-const ITEM_GAP_PX = 16
-const BAND_CHROME_PX = 60
+/** About how wide the band draws each part, in CSS pixels (measured on the desktop: values in footnote type, labels in caption). */
+const VALUE_PX = 6.8
+const LABEL_PX = 5.6
+const GAUGE_PX = 18
+const ITEM_GAP_PX = 14
+const BAND_CHROME_PX = 50
 
 function itemPx(item: HudItem, showLabels: boolean): number {
   const label = showLabels && item.label !== '' ? item.label.length * LABEL_PX + 4 : 0
@@ -124,7 +124,7 @@ function itemPx(item: HudItem, showLabels: boolean): number {
  * then the values without their labels, then without the model.
  */
 export function fitBand(items: HudItem[], widthPx: number, extraText: string): { items: HudItem[]; showLabels: boolean } {
-  const room = widthPx - BAND_CHROME_PX - (extraText === '' ? 0 : extraText.length * 6.8 + ITEM_GAP_PX)
+  const room = widthPx - BAND_CHROME_PX - (extraText === '' ? 0 : extraText.length * 6.4 + ITEM_GAP_PX)
   const width = (list: HudItem[], showLabels: boolean) => list.reduce((sum, item) => sum + itemPx(item, showLabels), 0)
   if (width(items, true) <= room) return { items, showLabels: true }
   if (width(items, false) <= room) return { items, showLabels: false }

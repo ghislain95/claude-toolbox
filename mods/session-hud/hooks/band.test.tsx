@@ -53,13 +53,13 @@ test('the band shows the session in any project, with the background count once 
       { id: 't3', type: 'shell', status: 'completed', description: 'build', command: 'npm run build' },
     ],
   } as never)
-  expect(await band.find({ type: 'Button', key: 'background' }).then(found => found?.props.label)).toBe('⚙ 2 en arrière-plan ▴')
+  expect(await band.find({ type: 'Button', key: 'background' }).then(found => found?.props.label)).toBe('2 en arrière-plan ▴')
   // A click unfolds the list above the band: each task, its port, its kind; « Tout afficher » opens the pane.
   await band.press({ key: 'background' })
   expect(await band.find({ type: 'Text', text: 'frontend' })).toBeDefined()
   expect(await band.find({ type: 'Text', text: ':5173' })).toBeDefined()
   expect(await band.find({ type: 'Text', text: 'workflow' })).toBeDefined()
-  expect(await band.find({ type: 'Button', key: 'background' }).then(found => found?.props.label)).toBe('⚙ 2 en arrière-plan ▾')
+  expect(await band.find({ type: 'Button', key: 'background' }).then(found => found?.props.label)).toBe('2 en arrière-plan ▾')
   expect(seen.commands).toEqual([])
   await band.press({ key: 'show-all' })
   expect(seen.commands).toEqual(['arriere-plan'])
@@ -77,7 +77,7 @@ test('a reload of the module keeps the tasks the last turn’s end reported', as
   // A reload runs register and session.start again; the state stays.
   await start($)
   const band = await $.ui.mount({ plugin: 'session-hud', surface: 'desktop', ...BAND(false) })
-  expect(await band.find({ type: 'Button', key: 'background' }).then(found => found?.props.label)).toBe('⚙ 1 en arrière-plan ▴')
+  expect(await band.find({ type: 'Button', key: 'background' }).then(found => found?.props.label)).toBe('1 en arrière-plan ▴')
 })
 
 test('tool calls reach the band at the next refresh, not one by one', async ($, on) => {
@@ -122,10 +122,10 @@ function withBackdrop(on: On): Backdrops {
 
 const BACKDROP = (plugin: string) => ({
   component: 'Backdrop' as const,
-  props: { id: 'sienne', plugin, glass: { blur: 16, opacity: 0.6 } },
+  props: { scene: 'sienne', plugin, glass: { blur: 16, opacity: 0.6 } },
 })
 
-test('the session sets its backdrop at start, and draws only its own', async ($, on) => {
+test('the backdrop stays off at start; turned on, it draws only its own', async ($, on) => {
   world(on)
   const seen = withBackdrop(on)
   on('ui.render', { component: 'Backdrop' }, ($, e) => {
@@ -133,7 +133,10 @@ test('the session sets its backdrop at start, and draws only its own', async ($,
     return <Box key="engine-backdrop" />
   })
   await start($)
-  expect(seen.set).toEqual([{ id: 'sienne' }])
+  expect(seen.set).toEqual([])
+  seen.store.set('backdrop', 'on')
+  await start($)
+  expect(seen.set).toEqual([{ scene: 'sienne' }])
   const mine = await $.ui.mount({ plugin: 'session-hud', surface: 'desktop', ...BACKDROP('session-hud') })
   expect(String((await mine.find({ type: 'Svg' }))?.props.source)).toContain('feTurbulence')
   const other = await $.ui.mount({ plugin: 'session-hud', surface: 'desktop', ...BACKDROP('other') })
@@ -147,18 +150,19 @@ test('/fond toggles the backdrop and remembers it', async ($, on) => {
   await start($)
   const ORIGIN = { kind: 'composer' as const }
   const PRESENTATION = { isFullscreen: true, columns: 120 }
+  expect(seen.set).toEqual([])
+  await $.command.run({ command: 'fond', args: '', origin: ORIGIN, presentation: PRESENTATION })
+  expect(seen.store.get('backdrop')).toBe('on')
+  expect(seen.set.at(-1)).toEqual({ scene: 'sienne' })
   await $.command.run({ command: 'fond', args: '', origin: ORIGIN, presentation: PRESENTATION })
   expect(seen.store.get('backdrop')).toBe('off')
   expect(seen.set.at(-1)).toBeUndefined()
   seen.set = []
   await start($)
   expect(seen.set).toEqual([])
-  await $.command.run({ command: 'fond', args: '', origin: ORIGIN, presentation: PRESENTATION })
-  expect(seen.store.get('backdrop')).toBe('on')
-  expect(seen.set.at(-1)).toEqual({ id: 'sienne' })
 })
 
-test('the band wears Sienne: its drawings follow the theme, its pill the accent, no Nord colour is left', async ($, on) => {
+test('the band wears Galet: its drawings follow the theme, it lies on the app’s own frame, no Nord colour is left', async ($, on) => {
   world(on)
   withBackdrop(on)
   await start($)
@@ -172,7 +176,9 @@ test('the band wears Sienne: its drawings follow the theme, its pill the accent,
   expect(drawings.length).toBeGreaterThan(1)
   for (const drawing of drawings) expect(String(drawing.props.source)).toContain('prefers-color-scheme: dark')
   const boxes = await band.findAll({ type: 'Box' })
-  expect(boxes.some(found => found.props.borderColor === 'rgba(192,112,42,.45)')).toBe(true)
+  // No surface of its own round the row: the app's frame is the band's only one. The list above it is an ochre pebble.
+  expect(boxes.find(found => found.key === 'band')?.props.backgroundColor).toBeUndefined()
+  expect(boxes.some(found => found.props.backgroundColor === 'rgba(191,111,58,.10)' && found.props.borderStyle === 'round')).toBe(true)
   const everything = JSON.stringify([...boxes, ...(await band.findAll({ type: 'Text' })), ...drawings].map(found => found.props)).toUpperCase()
   for (const colour of ['#88C0D0', '#A3BE8C', '#EBCB8B', '#BF616A', '#7B88A1', '#4C566A', '#D8DEE9']) expect(everything).not.toContain(colour)
 })

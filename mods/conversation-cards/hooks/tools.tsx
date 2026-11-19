@@ -28,7 +28,7 @@ export async function renderToolUse(
   const isRich = e.surface !== 'terminal'
   const accent = card.tone === 'agent' ? 'claude' : card.tone === 'web' ? 'suggestion' : 'subtle'
   const tailColor = tail.tone === 'running' ? 'claude' : tail.tone === 'error' ? 'error' : tail.tone === 'ok' ? 'success' : 'inactive'
-  const barColor = tail.tone === 'error' ? 'error' : tail.tone === 'running' ? 'claude' : tail.tone === 'ok' ? 'success' : 'inactive'
+  const barColor = tail.tone === 'error' ? 'error' : tail.tone === 'running' ? 'claude' : 'subtle'
   const header = (
     <Box key={`tool-${id}`} flexDirection="row" gap={1} alignItems="center" paddingLeft={isRich ? 1 : 0} {...(isRich ? { borderStyle: 'quote', borderColor: barColor } : {})}>
       <Text color={accent} weight="semibold">

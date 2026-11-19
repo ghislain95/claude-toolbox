@@ -6,4 +6,6 @@ De gauche à droite : un point qui pulse quand Claude travaille, l'anneau et le 
 
 La bande ne se redessine qu'au rafraîchissement (30 s) et en fin de tour, jamais à chaque appel d'outil. Dans le terminal, elle tient sur une ligne de texte.
 
-Sur desktop, le mod pose aussi le fond de la fenêtre, en Terre de Sienne, clair ou sombre selon le thème de l'app. On y voit la couleur de base, trois halos flous qui dérivent lentement et un grain léger, sous les panneaux en verre dépoli de l'app. `/fond` l'éteint ou le rallume, et le choix est gardé d'une session à l'autre. Le mouvement s'arrête quand le système demande de réduire les animations.
+La bande est un galet gris, aussi fin qu'une ligne de texte ; le nombre de tâches en arrière-plan est une pastille ocre qui déplie leur liste.
+
+Sur desktop, le mod sait aussi poser un fond animé derrière la conversation (trois halos flous qui dérivent lentement et un grain léger, clair ou sombre selon le thème de l'app). Il est **éteint par défaut** : le look Galet se pose sur le fond de l'app. `/fond` l'allume ou l'éteint, et le choix est gardé d'une session à l'autre. Le mouvement s'arrête quand le système demande de réduire les animations.

@@ -294,13 +294,13 @@ test('on desktop the cockpit opens on a large ring and the phase timeline, then 
     expect(Number(svg.props.height)).toBeLessThan(150)
     expect(String(svg.props.source)).toContain('prefers-color-scheme: dark')
   }
-  // The head: a 64 px ring labelled with the change's tasks, then the cycle's timeline at the current step.
-  expect(drawings[0]?.props.width).toBe(64)
-  expect(String(drawings[0]?.props.source)).toContain('>2/4</text>')
+  // The head: a 54 px ring labelled with the change's share done, then the cycle's segments at the current step.
+  expect(drawings[0]?.props.width).toBe(54)
+  expect(String(drawings[0]?.props.source)).toContain('>50%</text>')
   expect(String(drawings[1]?.props.alt)).toBe('Cycle : apply')
-  // The ring fills and the timeline pulses: drawn interactive, the only way the desktop runs their motion.
+  // The ring fills as it appears: drawn interactive, the only way the desktop runs its motion. The segments stand still.
   expect(drawings[0]?.props.isInteractive).toBe(true)
-  expect(drawings[1]?.props.isInteractive).toBe(true)
+  expect(drawings[1]?.props.isInteractive).not.toBe(true)
   expect(await ui.find({ type: 'Text', text: 'offline-catalog' })).toBeDefined()
   const gates = String(drawings.find(svg => svg.props.alt === 'Portes du cycle')?.props.source ?? '')
   expect(gates).toContain('graph périmé')
@@ -308,7 +308,8 @@ test('on desktop the cockpit opens on a large ring and the phase timeline, then 
   expect(gates).toContain('1 non commité')
   // The background tasks show here at a glance, as background-tasks draws them: running runs, this session's
   // agents, finished runs. The other sessions of the project are gone (never asked back).
-  expect(await ui.find({ type: 'Text', text: /EN ARRIÈRE-PLAN/ })).toBeDefined()
+  // A section's title is the press that folds it, its arrow in the same button.
+  expect(await ui.find({ type: 'Button', key: 'toggle-background' }).then(found => found?.props.label)).toBe('▾  En arrière-plan')
   expect(await ui.find({ type: 'Text', text: 'impl:14' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: 'review-close-out' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: 'Offline catalog S3' })).toBeUndefined()
@@ -319,17 +320,17 @@ test('on desktop the cockpit opens on a large ring and the phase timeline, then 
   expect(seen.fills.at(-1)).toContain('.claude/passation/2026-10-15-1740-s3.md')
 })
 
-test('group progress uses growing bars, the current group running, and no button', async ($, on) => {
+test('group progress uses soft bars, the finished groups paler, and no button', async ($, on) => {
   const tree = projectTree()
   tree['/repo/openspec/changes/offline-catalog/tasks.md'] = file('## 1. Infra\n- [x] 1.1\n- [x] 1.2\n\n## 2. Frontend\n- [x] 2.1\n- [ ] 2.2\n- [ ] 2.3\n', NOW - 60 * MINUTE)
   world(on, '/repo', tree)
   await start($)
   await $.command.run({ command: 'ou-en-suis-je', args: '', origin: ORIGIN, presentation: PRESENTATION })
   const ui = await $.ui.mount({ plugin: 'openspec-cockpit', surface: 'desktop', ...PANE })
-  const bars = (await ui.findAll({ type: 'Svg' })).filter(svg => /^\d+\/\d+$/.test(String(svg.props.alt)) && svg.props.height === 10)
+  const bars = (await ui.findAll({ type: 'Svg' })).filter(svg => /^\d+\/\d+$/.test(String(svg.props.alt)) && svg.props.height === 5)
   expect(bars.map(svg => svg.props.alt)).toEqual(['2/2', '1/3'])
-  expect(String(bars[1]?.props.source)).toContain('class="glide')
-  expect(String(bars[0]?.props.source)).not.toContain('class="glide')
+  expect(String(bars[0]?.props.source)).toContain('opacity=".55"')
+  expect(String(bars[1]?.props.source)).not.toContain('opacity=".55"')
   expect((await ui.findAll({ type: 'Button' })).filter(button => String(button.key).startsWith('group-'))).toHaveLength(0)
 })
 

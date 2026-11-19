@@ -7,9 +7,9 @@ import type { EngineInterface, RenderChildren, RenderInput } from 'claude-code'
 import type { CockpitBackground, Snapshot } from '../types'
 import { fillPrompt, runAction, toggleRitual, toggleSection } from './actions'
 import { type NextAction, formatClock, nextAction, percent, plural, postArchiveRitual, progressBar, resumePrompt, stepIndexOf, stepLabel, truncate } from './logic'
-import { type BackgroundSnapshot, renderPane as renderBackground, renderTextPane as renderBackgroundText } from './shared/background-view'
+import { type BackgroundSnapshot, renderCompact as renderBackground, renderTextPane as renderBackgroundText } from './shared/background-view'
 import type { Service } from './shared/services'
-import { NATIVE, type Tone, bar, dot, pills, ring, timeline } from './shared/sienne'
+import { type Family, GALET, NATIVE, type Tone, bar, chip, dot, pills, ring, surface, timeline } from './shared/sienne'
 
 export type PaneData = {
   shot: Snapshot
@@ -38,12 +38,13 @@ const TONE_COLOR: Record<NextAction['tone'], string> = {
   neutral: 'subtle',
 }
 
-const TONE_BORDER: Record<NextAction['tone'], string> = {
-  running: NATIVE.accentBorder,
-  warning: 'warning',
-  danger: NATIVE.danger,
-  ok: NATIVE.ok,
-  neutral: NATIVE.accentBorder,
+/** The pastel the next action is drawn in: ochre while work goes on, honey or rose when a gate holds, sage when all is done. */
+const NEXT_FAMILY: Record<NextAction['tone'], Family> = {
+  running: 'ochre',
+  warning: 'honey',
+  danger: 'rose',
+  ok: 'sage',
+  neutral: 'ochre',
 }
 
 /** The background tasks as background-tasks draws them, and how many are running. */
@@ -112,20 +113,16 @@ export function renderRichPane($: EngineInterface, e: RenderInput<'Pane', 'deskt
   const width = Math.max(260, Math.floor(e.props.bodyColumns * 8.9) - 4)
   const isCollapsed = (id: string) => data.collapsedSections[id] === true
 
+  // A section: its title in sentence case behind a quiet chevron, its meta on the right; the title folds it.
   const section = (id: string, title: string, meta: string | null, body: RenderChildren, metaColor?: string) => (
-    <Box key={`section-${id}`} flexDirection="column" gap="xs">
-      <Box flexDirection="row" alignItems="center" gap="sm">
-        <Button key={`toggle-${id}`} plain dimColor onPress={() => void toggleSection($, id)}>
-          <Text size="caption" weight="semibold" dimColor>
-            {isCollapsed(id) ? '▸' : '▾'} {title.toUpperCase()}
+    <Box key={`section-${id}`} flexDirection="column" gap="sm">
+      <Box flexDirection="row" alignItems="center" gap="sm" justifyContent="space-between">
+        <Button key={`toggle-${id}`} plain label={`${isCollapsed(id) ? '▸' : '▾'}  ${title}`} onPress={() => void toggleSection($, id)} />
+        {meta !== null && (
+          <Text size="caption" color={metaColor} dimColor={metaColor === undefined} wrap="truncate-end">
+            {meta}
           </Text>
-          {meta !== null && (
-            <Text size="caption" color={metaColor} dimColor={metaColor === undefined}>
-              {' '}
-              · {meta}
-            </Text>
-          )}
-        </Button>
+        )}
       </Box>
       {!isCollapsed(id) && body}
     </Box>
@@ -135,22 +132,22 @@ export function renderRichPane($: EngineInterface, e: RenderInput<'Pane', 'deskt
   const stepIndex = stepIndexOf(shot.step, review, shot.dirtyCount)
   const ringLabel = change === null ? '—' : `${change.done}/${change.total}`
   const head = (
-    <Box key="head" flexDirection="column" gap="sm">
+    <Box key="head" flexDirection="column" gap="md">
       <Box flexDirection="row" gap="md" alignItems="center">
-        <Svg key="head-ring" alt={change === null ? 'Aucun change' : `${change.name} ${ringLabel}`} source={ring(change === null || change.total === 0 ? 0 : change.done / change.total, { size: 64, label: ringLabel, id: 'head' })} width={64} height={64} isInteractive />
+        <Svg key="head-ring" alt={change === null ? 'Aucun change' : `${change.name} ${ringLabel}`} source={ring(change === null || change.total === 0 ? 0 : change.done / change.total, { size: 54, label: change === null ? '—' : `${percent(change.done, change.total)}%`, id: 'head' })} width={54} height={54} isInteractive />
         <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0} gap="xs">
           <Text weight="semibold" wrap="truncate-end">
             {change?.name ?? 'Aucun change actif'}
           </Text>
           <Text size="caption" dimColor wrap="truncate-end">
-            {change === null ? stepLabel(shot.step) : `étape ${stepLabel(change.step)} · ${percent(change.done, change.total)} %`}
+            {change === null ? stepLabel(shot.step) : `${stepLabel(change.step)} · ${change.done} tâches sur ${change.total}`}
           </Text>
           <Text size="caption" dimColor wrap="truncate-end">
-            ⎇ {shot.branch ?? '?'} · {shot.dirtyCount === 0 ? 'arbre propre' : plural(shot.dirtyCount, 'non commité', 'non commités')}
+            {shot.branch ?? '?'} · {shot.dirtyCount === 0 ? 'arbre propre' : plural(shot.dirtyCount, 'non commité', 'non commités')}
           </Text>
         </Box>
       </Box>
-      <Svg key="head-timeline" alt={`Cycle : ${stepIndex >= 0 && stepIndex < CYCLE.length ? CYCLE[stepIndex] : stepIndex >= CYCLE.length ? 'terminé' : 'aucun change'}`} source={timeline(width, [...CYCLE], stepIndex, { id: 'cycle' })} width={Math.max(240, width)} height={36} isInteractive />
+      <Svg key="head-timeline" alt={`Cycle : ${stepIndex >= 0 && stepIndex < CYCLE.length ? CYCLE[stepIndex] : stepIndex >= CYCLE.length ? 'terminé' : 'aucun change'}`} source={timeline(width, [...CYCLE], stepIndex, { id: 'cycle' })} width={Math.max(240, width)} height={26} />
     </Box>
   )
 
@@ -186,15 +183,15 @@ export function renderRichPane($: EngineInterface, e: RenderInput<'Pane', 'deskt
       ? postArchiveRitual({ archived: shot.archivedChange, graphBuiltAt: graph.builtAt, usesGraph: graph.state !== 'unused', marks: data.marks })
       : null
   const handoff = shot.handoff
-  const barWidth = Math.max(80, Math.min(220, Math.floor(width * 0.4)))
+  const barWidth = Math.max(56, Math.min(120, Math.floor(width * 0.22)))
 
   return (
     <Box flexDirection="column" gap="md">
       {head}
 
-      <Box key="next" flexDirection="column" gap="xs" borderStyle="round" borderColor={TONE_BORDER[action.tone]} backgroundColor={NATIVE.accentFill} paddingX="md" paddingY="sm">
-        <Text size="caption" weight="semibold" color={NATIVE.accent}>
-          PROCHAINE ACTION
+      <Box key="next" flexDirection="column" gap="xs" {...surface(NEXT_FAMILY[action.tone])} paddingX="md" paddingY="md">
+        <Text size="caption" weight="medium" color={GALET.text[NEXT_FAMILY[action.tone]]}>
+          Prochaine action
         </Text>
         <Text weight="semibold" wrap="wrap">
           {action.title}
@@ -216,7 +213,9 @@ export function renderRichPane($: EngineInterface, e: RenderInput<'Pane', 'deskt
             ))}
           </Box>
         )}
-        <Svg key="gates" alt="Portes du cycle" source={gates.source} width={gates.width} height={gates.height} isInteractive />
+        <Box flexDirection="row" paddingTop="xs">
+          <Svg key="gates" alt="Portes du cycle" source={gates.source} width={gates.width} height={gates.height} isInteractive />
+        </Box>
       </Box>
 
       {(() => {
@@ -240,7 +239,7 @@ export function renderRichPane($: EngineInterface, e: RenderInput<'Pane', 'deskt
             {shot.groups.map(group => {
               const isCurrent = group === currentGroup
               return (
-                <Box key={`group-${group.number}`} flexDirection="row" gap="sm" alignItems="center">
+                <Box key={`group-${group.number}`} flexDirection="row" gap="sm" alignItems="center" {...(isCurrent ? chip(GALET.deep.ochre) : {})}>
                   <Box flexGrow={1} flexShrink={1} minWidth={0}>
                     <Text size="footnote" wrap="truncate-end" weight={isCurrent ? 'semibold' : 'regular'} dimColor={group.done === group.total && !isCurrent}>
                       {group.number}. {group.title}
@@ -249,9 +248,9 @@ export function renderRichPane($: EngineInterface, e: RenderInput<'Pane', 'deskt
                   <Svg
                     key={`group-${group.number}-bar`}
                     alt={`${group.done}/${group.total}`}
-                    source={bar(barWidth, group.total === 0 ? 0 : group.done / group.total, { running: isCurrent, id: `group-${group.number}` })}
+                    source={bar(barWidth, group.total === 0 ? 0 : group.done / group.total, { done: group.total > 0 && group.done === group.total, id: `group-${group.number}` })}
                     width={barWidth}
-                    height={10} isInteractive />
+                    height={5} />
                   <Text size="caption" dimColor tabular>
                     {group.done}/{group.total}
                   </Text>
@@ -281,8 +280,8 @@ export function renderRichPane($: EngineInterface, e: RenderInput<'Pane', 'deskt
                     <Text wrap="truncate-end">{decision.text}</Text>
                   </Button>
                 </Box>
-                <Box flexShrink={0}>
-                  <Text size="caption" color={decision.status === 'agent' ? 'warning' : NATIVE.accent} wrap="truncate">
+                <Box flexShrink={0} {...chip(GALET.deep[decision.status === 'agent' ? 'honey' : 'ochre'])}>
+                  <Text size="caption" color={GALET.text[decision.status === 'agent' ? 'honey' : 'ochre']} wrap="truncate">
                     {decision.status === 'agent' ? 'à confirmer' : 'ouverte'}
                   </Text>
                 </Box>
@@ -323,21 +322,17 @@ export function renderRichPane($: EngineInterface, e: RenderInput<'Pane', 'deskt
           'handoff',
           'Passation',
           formatClock(handoff.writtenAt, offset),
-          <Box flexDirection="column" gap="xs" borderStyle="round" borderColor={NATIVE.accentBorder} paddingX="md" paddingY="sm">
+          <Box flexDirection="column" gap="xs" {...surface('stone')} paddingX="md" paddingY="md">
             <Text weight="semibold" wrap="wrap">
               {handoff.title}
             </Text>
-            {handoff.nextSteps.length > 0 && (
-              <Markdown
-                key="handoff-steps"
-                text={handoff.nextSteps
-                  .slice(0, 4)
-                  .map((step, index) => `${index + 1}. ${truncate(step, 160)}`)
-                  .join('\n')}
-              />
-            )}
+            {handoff.nextSteps.slice(0, 4).map((step, index) => (
+              <Text key={`handoff-step-${index}`} size="footnote" dimColor wrap="wrap">
+                {index + 1}. {truncate(step, 160)}
+              </Text>
+            ))}
             <Box flexDirection="row" gap="sm">
-              <Button key="resume-pane" variant="primary" label="Reprendre" onPress={() => void fillPrompt($, resumePrompt(handoff.file))} />
+              <Button key="resume-pane" variant="secondary" label="Reprendre" onPress={() => void fillPrompt($, resumePrompt(handoff.file))} />
             </Box>
             {shot.recentHandoffs.slice(1, 4).map(older => (
               <Button key={`handoff-${older.file}`} plain onPress={() => void fillPrompt($, resumePrompt(older.file))}>
@@ -347,11 +342,11 @@ export function renderRichPane($: EngineInterface, e: RenderInput<'Pane', 'deskt
           </Box>,
         )}
 
-      <Box flexDirection="row" gap="sm" alignItems="center">
-        <Button key="refresh" label="Rafraîchir" onPress={() => void data.onRefresh()} />
+      <Box flexDirection="row" gap="sm" alignItems="center" justifyContent="space-between">
         <Text size="caption" dimColor>
-          Mis à jour {formatClock(shot.takenAt, offset)} · toutes les 30 s
+          Mis à jour {formatClock(shot.takenAt, offset)}
         </Text>
+        <Button key="refresh" plain dimColor label="Rafraîchir" onPress={() => void data.onRefresh()} />
       </Box>
     </Box>
   )

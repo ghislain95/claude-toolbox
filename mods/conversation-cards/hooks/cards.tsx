@@ -43,7 +43,7 @@ import {
   tablePicks,
   withoutCockpitBlock,
 } from './parse'
-import { type IconName, NATIVE, type Tone, pills, ribbon } from './shared/sienne'
+import { type IconName, GALET, type Mode, NATIVE, type Tone, chip, disc, dot, familyOf, icon, pills, surface, tileFill } from './shared/sienne'
 
 export type MessageShape = {
   questions: Question[]
@@ -198,14 +198,20 @@ export type CardContext = {
   isCompact?: boolean
   /** The person has sent something since this reply: its cards stop moving (only the latest reply moves). */
   isSettled?: boolean
-  /** The ribbon's width in CSS pixels on a surface that draws Svg; null on the terminal, which keeps text headers. */
-  ribbonWidth?: number | null
+  /** True on a surface that draws Svg (desktop, VS Code): the Galet cards; the terminal keeps its framed text cards. */
+  isRich?: boolean
+  /** The app's light or dark mode: tiles and chips are white on light, a veil on dark. */
+  mode?: Mode
 }
 
 type Elements = ReturnType<EngineInterface['ui']['resolve']>
 type Event = RenderInput<'AssistantMessage'>
 
-type Header = { icon: IconName | { badge: string }; title: string; meta?: string; tone?: Tone; waiting?: boolean; done?: boolean }
+/**
+ * A card's head: a tag (Q1) or an icon, the title, a meta on the right. `waiting` marks a question that waits for
+ * an answer in the latest reply (a dot that breathes); `pending`, one that waits in an earlier reply (a still dot).
+ */
+type Header = { icon: IconName | { badge: string }; title: string; meta?: string; tone?: Tone; waiting?: boolean; pending?: boolean; done?: boolean }
 
 const BORDER: Record<Tone, string> = {
   accent: NATIVE.accentBorder,
@@ -216,18 +222,22 @@ const BORDER: Record<Tone, string> = {
   danger: NATIVE.danger,
 }
 
-/** The ribbon's top corners take the same curve as the card's own (radius ≈ 10 px, measured on the desktop), the gap between them kept. */
-const RIBBON_RADIUS = 10
+type SvgElement = (props: Record<string, unknown>) => RenderElement
+
+/** The Svg element where the surface draws one (desktop, VS Code) and the context asks for Galet cards. */
+function richSvg(els: Elements, context: CardContext): SvgElement | null {
+  const { Svg } = els as { Svg?: SvgElement }
+  return context.isRich === true && Svg !== undefined ? Svg : null
+}
 
 /**
- * A card: on a surface that draws Svg, a Terre de Sienne ribbon (icon, title, state) over the body, framed by
- * the accent border; on the terminal, the text header it always had.
+ * A card: on a surface that draws Svg, a Galet pebble (a pastel of the card's tone, round corners, no rim) that
+ * opens on its tag or icon, its title and a meta; on the terminal, the framed text card it always was.
  */
 function framed(els: Elements, key: string, context: CardContext, header: Header, textHeader: RenderChildren, body: RenderChildren, gap: 'xs' | 'sm' = 'xs'): RenderChildren {
-  const { Box } = els
-  const { Svg } = els as { Svg?: (props: Record<string, unknown>) => RenderElement }
-  const width = context.ribbonWidth ?? null
-  if (width === null || Svg === undefined) {
+  const { Box, Text } = els
+  const Svg = richSvg(els, context)
+  if (Svg === null) {
     return (
       <Box key={key} flexDirection="column" gap={gap} borderStyle="round" borderColor={BORDER[header.tone ?? 'accent']} paddingX="md" paddingY="sm">
         {textHeader}
@@ -235,16 +245,63 @@ function framed(els: Elements, key: string, context: CardContext, header: Header
       </Box>
     )
   }
-  const alt = [header.title, header.meta].filter(part => part !== undefined && part !== '').join(' · ')
+  const tone = header.tone ?? 'accent'
+  const family = familyOf(tone)
+  const lead =
+    typeof header.icon === 'string' ? (
+      <Svg key={`${key}-icon`} alt={header.title} source={icon(header.icon, { tone, size: 15 })} width={15} height={15} />
+    ) : (
+      <Box key={`${key}-tag`} flexDirection="row" alignItems="center" gap="xs" flexShrink={0} {...chip(GALET.deep[family])}>
+        <Svg key={`${key}-tag-icon`} alt={header.icon.badge} source={icon('question', { tone, size: 12 })} width={12} height={12} />
+        <Text size="caption" weight="semibold" color={GALET.text[family]}>
+          {header.icon.badge}
+        </Text>
+      </Box>
+    )
   return (
-    <Box key={key} flexDirection="column" borderStyle="round" borderColor={BORDER[header.tone ?? 'accent']} overflow="hidden">
-      <Svg key={`${key}-ribbon`} alt={alt} source={ribbon(width, { id: key, ...header, radius: RIBBON_RADIUS })} width={Math.max(240, width)} height={36} isInteractive />
-      <Box flexDirection="column" gap={gap} paddingX="md" paddingY="sm">
+    <Box key={key} flexDirection="column" gap="sm" {...surface(family)} paddingX="md" paddingY="md">
+      <Box flexDirection="row" gap="sm" alignItems="center">
+        {lead}
+        <Box flexGrow={1} flexShrink={1} minWidth={0}>
+          <Text weight="semibold" wrap="wrap">
+            {header.title}
+          </Text>
+        </Box>
+        {header.meta !== undefined && header.meta !== '' && (
+          <Box flexShrink={0} flexDirection="row" gap="xs" alignItems="center">
+            {(header.waiting === true || header.pending === true) && (
+              <Svg key={`${key}-waiting`} alt="en attente" source={dot(tone, { pulse: header.waiting === true, size: 10 })} width={10} height={10} isInteractive={header.waiting === true} />
+            )}
+            <Text size="caption" dimColor>
+              {header.meta}
+            </Text>
+          </Box>
+        )}
+        {header.done === true && <Svg key={`${key}-done`} alt="fait" source={icon('check', { tone: 'ok', size: 15 })} width={15} height={15} />}
+      </Box>
+      <Box flexDirection="column" gap={gap}>
         {body}
       </Box>
     </Box>
   )
 }
+
+/**
+ * A mark (OK, KO, Corriger, Ton avis, Note): on the desktop a soft chip, white on light and a veil on dark,
+ * that takes the pastel of its tone once chosen; on the terminal a quiet text button.
+ */
+function markButton(els: Elements, context: CardContext, key: string, label: string, isOn: boolean, tone: Tone, onPress: () => void): RenderChildren {
+  const { Box, Button } = els
+  const button = <Button key={key} plain dimColor={!isOn} label={label} onPress={onPress} />
+  if (richSvg(els, context) === null) return button
+  return (
+    <Box key={`${key}-chip`} flexShrink={0} {...chip(isOn ? GALET.deep[familyOf(tone)] : tileFill(context.mode ?? 'auto'), { pressable: true })}>
+      {button}
+    </Box>
+  )
+}
+
+const TONE_OF_COLOR: Record<string, Tone> = { success: 'ok', error: 'danger', warning: 'warning' }
 
 // ---------------------------------------------------------------- the answer sent back
 
@@ -300,8 +357,40 @@ function answeredCount(marks: Record<string, string>): number {
 // ---------------------------------------------------------------- shared pieces
 
 function noteButton($: EngineInterface, els: Elements, key: string, label: string, context: CardContext): RenderChildren {
-  const { Button } = els
-  return <Button key={`note-button-${context.messageId}-${key}`} plain dimColor label="💬 note" onPress={() => void notePrompt($, label)} />
+  return markButton(els, context, `note-button-${context.messageId}-${key}`, 'Note', false, 'muted', () => void notePrompt($, label))
+}
+
+/**
+ * A row's number; on the desktop, once marked, a check (OK) or a cross (KO, à corriger) in the mark's tone takes
+ * its place and the text keeps its own colour, so a card full of answers stays calm.
+ */
+function rowIndex(els: Elements, context: CardContext, index: number, chosen: MarkOption | undefined): RenderChildren {
+  const { Text } = els
+  if (chosen === undefined || richSvg(els, context) === null) {
+    return (
+      <Text size="caption" dimColor tabular>
+        {index + 1}.
+      </Text>
+    )
+  }
+  if (chosen.value !== 'ok') {
+    return (
+      <Text size="caption" dimColor tabular>
+        {index + 1}.
+      </Text>
+    )
+  }
+  return (
+    <Text size="caption" weight="semibold" color={GALET.text.sage} tabular>
+      ✓
+    </Text>
+  )
+}
+
+/** The colour of a marked row's text: the mark's on the terminal; on the desktop a row marked OK goes quiet. */
+function rowColor(els: Elements, context: CardContext, chosen: MarkOption | undefined): string | undefined {
+  if (richSvg(els, context) === null) return chosen?.color
+  return chosen?.value === 'ok' ? 'subtle' : undefined
 }
 
 type MarkOption = { value: string; label: string; color: string }
@@ -311,13 +400,13 @@ const QA_MARKS: MarkOption[] = [
 ]
 const ASK_MARKS: MarkOption[] = [{ value: 'ok', label: 'OK', color: 'success' }]
 const DECISION_MARKS: MarkOption[] = [
-  { value: 'ok', label: '✓ OK', color: 'success' },
-  { value: 'ko', label: '✎ corriger', color: 'warning' },
+  { value: 'ok', label: 'OK', color: 'success' },
+  { value: 'ko', label: 'Corriger', color: 'warning' },
 ]
 
 const PREFIX_LABEL: Record<string, string> = { qa: 'QA', ask: 'Demande', dec: 'Décision' }
 
-/** Rows of items, each with its mark buttons and a « 💬 note » that opens a labelled line in the prompt. */
+/** Rows of items, each with its mark buttons and a « Note » that opens a labelled line in the prompt. */
 function replyRows(
   $: EngineInterface,
   els: Elements,
@@ -328,7 +417,7 @@ function replyRows(
   offset = 0,
   details: (string | null)[] = [],
 ): RenderChildren {
-  const { Box, Text, Button, Markdown } = els
+  const { Box, Text, Markdown } = els
   return items.map((item, position) => {
     const index = offset + position
     const key = `${prefix}:${index}`
@@ -339,26 +428,18 @@ function replyRows(
     return (
       <Box key={`row-${context.messageId}-${key}`} flexDirection="column" gap="xs">
       <Box flexDirection="row" gap="sm" alignItems="center">
-        <Text size="caption" dimColor tabular>
-          {index + 1}.
-        </Text>
+        {rowIndex(els, context, index, chosen)}
         <Box flexGrow={1} flexShrink={1} minWidth={0}>
-          <Text wrap="wrap" color={chosen?.color}>
+          <Text wrap="wrap" color={rowColor(els, context, chosen)}>
             {item}
           </Text>
         </Box>
-        {options.map(option => (
-          <Button
-            key={`mark-${context.messageId}-${key}-${option.value}`}
-            plain
-            dimColor={mark !== option.value}
-            label={option.label}
-            onPress={() => {
-              void markQa($, context.messageId, key, option.value)
-              if (prefix === 'dec' && option.value === 'ko' && mark !== 'ko') void notePrompt($, `${label} — à corriger`)
-            }}
-          />
-        ))}
+        {options.map(option =>
+          markButton(els, context, `mark-${context.messageId}-${key}-${option.value}`, option.label, mark === option.value, TONE_OF_COLOR[option.color] ?? 'accent', () => {
+            void markQa($, context.messageId, key, option.value)
+            if (prefix === 'dec' && option.value === 'ko' && mark !== 'ko') void notePrompt($, `${label} — à corriger`)
+          }),
+        )}
         {noteButton($, els, key, label, context)}
       </Box>
       {detail !== null && (
@@ -415,14 +496,26 @@ function filesRow($: EngineInterface, els: Elements, files: { path: string; line
       <Text size="caption" dimColor>
         Fichiers cités
       </Text>
-      {files.map(file => (
-        <Button
-          key={`file-${context.messageId}-${file.path}-${file.line ?? ''}`}
-          plain
-          label={`📄 ${basename(file.path)}${file.line !== null ? `:${file.line}` : ''}`}
-          onPress={() => void openFile($, context.root, context.home, file.path, file.line, context.changeNames)}
-        />
-      ))}
+      {files.map(file => {
+        const fileKey = `file-${context.messageId}-${file.path}-${file.line ?? ''}`
+        const button = (
+          <Button
+            key={fileKey}
+            plain
+            dimColor
+            label={`${basename(file.path)}${file.line !== null ? `:${file.line}` : ''}`}
+            onPress={() => void openFile($, context.root, context.home, file.path, file.line, context.changeNames)}
+          />
+        )
+        const Svg = richSvg(els, context)
+        if (Svg === null) return button
+        return (
+          <Box key={`${fileKey}-row`} flexDirection="row" alignItems="center" flexShrink={0}>
+            <Svg key={`${fileKey}-icon`} alt="fichier" source={icon('file', { tone: 'muted', size: 12 })} width={12} height={12} />
+            {button}
+          </Box>
+        )
+      })}
     </Box>
   )
 }
@@ -431,6 +524,9 @@ function filesRow($: EngineInterface, els: Elements, files: { path: string; line
 
 const SEVERITY_LABEL = { blocking: 'BLOQUANT', major: 'MAJEUR', minor: 'MINEUR' } as const
 const SEVERITY_COLOR = { blocking: 'error', major: 'warning', minor: 'inactive' } as const
+/** A severity as the desktop names it: in a soft chip of its tone, in sentence case. */
+const SEVERITY_NAME = { blocking: 'Bloquant', major: 'Majeur', minor: 'Mineur' } as const
+const SEVERITY_TONE: Record<Finding['severity'], Tone> = { blocking: 'danger', major: 'warning', minor: 'muted' }
 
 function findingsTable($: EngineInterface, els: Elements, findings: Finding[], context: CardContext): RenderChildren {
   const { Box, Text, Button } = els
@@ -451,7 +547,7 @@ function findingsTable($: EngineInterface, els: Elements, findings: Finding[], c
       icon: 'warning',
       title: `Constats · ${counts}`,
       meta: open.length < findings.length ? `${findings.length - open.length} traités` : undefined,
-      tone: open.some(finding => finding.severity === 'blocking') ? 'danger' : 'accent',
+      tone: open.length > 0 ? 'danger' : 'muted',
     },
     (
       <Text size="caption" weight="semibold" dimColor>
@@ -462,9 +558,23 @@ function findingsTable($: EngineInterface, els: Elements, findings: Finding[], c
     <Box flexDirection="column" gap="xs">
       {findings.map((finding, index) => (
         <Box key={`finding-${context.messageId}-${index}`} flexDirection="row" gap="sm" alignItems="center">
-          <Text size="caption" weight="semibold" color={finding.status === 'open' ? SEVERITY_COLOR[finding.severity] : 'inactive'}>
-            {SEVERITY_LABEL[finding.severity]}
-          </Text>
+          {richSvg(els, context) !== null ? (
+            finding.status === 'open' ? (
+              <Box key={`finding-sev-${context.messageId}-${index}`} flexShrink={0} {...chip(GALET.deep[familyOf(SEVERITY_TONE[finding.severity])])}>
+                <Text size="caption" weight="medium" color={GALET.text[familyOf(SEVERITY_TONE[finding.severity])]}>
+                  {SEVERITY_NAME[finding.severity]}
+                </Text>
+              </Box>
+            ) : (
+              <Text size="caption" dimColor>
+                {SEVERITY_NAME[finding.severity]}
+              </Text>
+            )
+          ) : (
+            <Text size="caption" weight="semibold" color={finding.status === 'open' ? SEVERITY_COLOR[finding.severity] : 'inactive'}>
+              {SEVERITY_LABEL[finding.severity]}
+            </Text>
+          )}
           {finding.file !== null && (
             <Button
               key={`finding-file-${context.messageId}-${index}`}
@@ -484,7 +594,7 @@ function findingsTable($: EngineInterface, els: Elements, findings: Finding[], c
               key={`finding-fix-${context.messageId}-${index}`}
               plain
               dimColor
-              label="corriger"
+              label="Corriger"
               onPress={() =>
                 void addToPrompt(
                   $,
@@ -525,7 +635,7 @@ function commitCard($: EngineInterface, els: Elements, commit: CommitBlock, inde
       icon: 'commit',
       title: committed !== undefined ? `Commité · ${committed.hash}` : 'Commit prêt',
       meta: committed !== undefined ? undefined : `${commit.body.split('\n').length + 1} lignes`,
-      tone: committed !== undefined ? 'ok' : isClean ? 'accent' : 'warning',
+      tone: committed !== undefined || isClean ? 'ok' : 'warning',
       done: committed !== undefined,
     },
     (
@@ -544,7 +654,7 @@ function commitCard($: EngineInterface, els: Elements, commit: CommitBlock, inde
       )}
       {committed === undefined && (
         <Box flexDirection="row" gap="sm">
-          <Button key={`commit-copy-${context.messageId}-${index}`} variant="primary" label="Copier le message" onPress={() => void copyText($, commit.text, 'Message de commit')} />
+          <Button key={`commit-copy-${context.messageId}-${index}`} variant="secondary" label="Copier le message" onPress={() => void copyText($, commit.text, 'Message de commit')} />
         </Box>
       )}
     </Box>,
@@ -552,11 +662,102 @@ function commitCard($: EngineInterface, els: Elements, commit: CommitBlock, inde
   )
 }
 
+/** A question's options on the terminal: a letter button, the label, « ★ recommandé », the detail under it. */
+function textOptions($: EngineInterface, els: Elements, question: Question, context: CardContext, selected: string | undefined): RenderChildren {
+  const { Box, Text, Button, Markdown } = els
+  const key = `q:${question.id}`
+  return question.options.map(option => {
+    const isSelected = selected === option.letter
+    const frame = isSelected ? { borderStyle: 'round', borderColor: 'claude' } : option.isRecommended ? { borderStyle: 'round', borderColor: 'success' } : {}
+    return (
+      <Box key={`q-${context.messageId}-${question.id}-${option.letter}-row`} flexDirection="row" gap="sm" alignItems="flex-start" paddingX={1} {...frame}>
+        <Button
+          key={`q-${context.messageId}-${question.id}-${option.letter}`}
+          variant={isSelected ? 'primary' : 'secondary'}
+          label={option.letter}
+          onPress={() => void markQa($, context.messageId, key, option.letter)}
+        />
+        <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0} gap="xs">
+          <Box flexDirection="row" gap="sm" alignItems="center" flexWrap="wrap">
+            <Text weight="semibold" wrap="wrap">
+              {option.label}
+            </Text>
+            {option.isRecommended && (
+              <Text size="caption" weight="semibold" color="success">
+                ★ recommandé
+              </Text>
+            )}
+          </Box>
+          {option.detail !== '' && <Markdown key={`q-${context.messageId}-${question.id}-${option.letter}-detail`} text={option.detail} />}
+        </Box>
+      </Box>
+    )
+  })
+}
+
+/** An option's letter: a round button, grey, sage when recommended, ochre once chosen. */
+const DISC = { plain: 'rgba(128,128,128,.20)', recommended: 'rgba(93,138,90,.55)', chosen: 'rgba(191,111,58,.55)' } as const
+
+/**
+ * A question's options on the desktop: each a tile (white on light, a veil on dark; sage when recommended, ochre
+ * once chosen) with the letter in a round button, the label over its explanation. The letter and the label are the presses
+ * that answer (a button holds one line, so the explanation cannot be one): under the pointer the whole tile
+ * deepens and the label turns ochre, to say so.
+ */
+function pebbleOptions($: EngineInterface, els: Elements, Svg: SvgElement, question: Question, context: CardContext, selected: string | undefined): RenderChildren {
+  const { Box, Text, Button } = els
+  const key = `q:${question.id}`
+  const mode = context.mode ?? 'auto'
+  return question.options.map(option => {
+    const isSelected = selected === option.letter
+    const id = `q-${context.messageId}-${question.id}-${option.letter}`
+    const fill = isSelected ? GALET.deep.ochre : option.isRecommended ? GALET.deep.sage : tileFill(mode)
+    const hover = isSelected ? GALET.hover.ochre : option.isRecommended ? GALET.hover.sage : GALET.deep.ochre
+    return (
+      <Box
+        key={`${id}-row`}
+        flexDirection="row"
+        gap="sm"
+        alignItems="flex-start"
+        borderStyle="round"
+        borderColor={isSelected ? NATIVE.accentBorder : 'rgba(0,0,0,0)'}
+        backgroundColor={fill}
+        paddingX="md"
+        paddingY="sm"
+        hover={{ backgroundColor: hover }}
+      >
+        <Box flexShrink={0} {...chip(isSelected ? DISC.chosen : option.isRecommended ? DISC.recommended : DISC.plain, { pressable: true })}>
+          <Button key={`${id}-letter`} plain label={option.letter} onPress={() => void markQa($, context.messageId, key, option.letter)} />
+        </Box>
+        <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
+          <Box flexDirection="row" alignItems="center" gap="xs" flexWrap="wrap">
+            <Button key={id} plain label={option.label} hover={{ color: NATIVE.accent }} onPress={() => void markQa($, context.messageId, key, option.letter)} />
+            {option.isRecommended && (
+              <Text size="caption" weight="medium" color={GALET.text.sage}>
+                recommandé
+              </Text>
+            )}
+          </Box>
+          {option.detail !== '' && (
+            <Box paddingLeft="xs">
+              <Text size="footnote" dimColor wrap="wrap">
+                {cleanMarkdown(option.detail)}
+              </Text>
+            </Box>
+          )}
+        </Box>
+      </Box>
+    )
+  })
+}
+
 function questionCard($: EngineInterface, els: Elements, question: Question, context: CardContext): RenderChildren {
   const { Box, Text, Button, Markdown } = els
+  const Svg = richSvg(els, context)
   const key = `q:${question.id}`
   const selected = context.marks[key]
   const recommended = question.options.find(option => option.isRecommended)
+  const isRich = Svg !== null
   return framed(
     els,
     `q-${context.messageId}-${question.id}`,
@@ -566,6 +767,7 @@ function questionCard($: EngineInterface, els: Elements, question: Question, con
       title: question.title,
       meta: selected !== undefined ? `→ ${SPECIAL_ANSWERS[selected] ?? selected}` : 'en attente',
       waiting: selected === undefined && context.isSettled !== true,
+      pending: selected === undefined && context.isSettled === true,
     },
     (
       <Box flexDirection="row" gap="sm" alignItems="center">
@@ -586,52 +788,43 @@ function questionCard($: EngineInterface, els: Elements, question: Question, con
     ),
     <Box flexDirection="column" gap="sm">
       {question.context !== '' && <Markdown key={`q-${context.messageId}-${question.id}-context`} text={question.context} />}
-      {question.options.map(option => {
-        const isSelected = selected === option.letter
-        const frame = isSelected ? { borderStyle: 'round', borderColor: 'claude' } : option.isRecommended ? { borderStyle: 'round', borderColor: 'success' } : {}
-        return (
-          <Box key={`q-${context.messageId}-${question.id}-${option.letter}-row`} flexDirection="row" gap="sm" alignItems="flex-start" paddingX={1} {...frame}>
-            <Button
-              key={`q-${context.messageId}-${question.id}-${option.letter}`}
-              variant={isSelected ? 'primary' : 'secondary'}
-              label={option.letter}
-              onPress={() => void markQa($, context.messageId, key, option.letter)}
-            />
-            <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0} gap="xs">
-              <Box flexDirection="row" gap="sm" alignItems="center" flexWrap="wrap">
-                <Text weight="semibold" wrap="wrap">
-                  {option.label}
-                </Text>
-                {option.isRecommended && (
-                  <Text size="caption" weight="semibold" color="success">
-                    ★ recommandé
-                  </Text>
-                )}
-              </Box>
-              {option.detail !== '' && <Markdown key={`q-${context.messageId}-${question.id}-${option.letter}-detail`} text={option.detail} />}
-            </Box>
-          </Box>
-        )
-      })}
-      {question.rationale !== null && (
-        <Box borderStyle="quote" borderColor="success" paddingLeft={1}>
-          <Text size="footnote" wrap="wrap">
-            <Text size="footnote" weight="semibold" color="success">
-              {recommended !== undefined ? `Pourquoi ${recommended.letter} · ` : 'Recommandation · '}
+      {Svg !== null ? pebbleOptions($, els, Svg, question, context, selected) : textOptions($, els, question, context, selected)}
+      {question.rationale !== null &&
+        (isRich ? (
+          <Text size="footnote" wrap="wrap" dimColor>
+            <Text size="footnote" weight="medium" dimColor={false}>
+              Recommandation ·{' '}
             </Text>
-            {question.rationale}
+            {question.rationale.replace(/^\s*recommandation\s*[:·]\s*/i, '')}
           </Text>
-        </Box>
-      )}
+        ) : (
+          <Box borderStyle="quote" borderColor="success" paddingLeft={1}>
+            <Text size="footnote" wrap="wrap">
+              <Text size="footnote" weight="semibold" color="success">
+                {recommended !== undefined ? `Pourquoi ${recommended.letter} · ` : 'Recommandation · '}
+              </Text>
+              {question.rationale}
+            </Text>
+          </Box>
+        ))}
       <Box flexDirection="row" gap="sm" alignItems="center">
-        <Button key={`q-${context.messageId}-${question.id}-opinion`} plain dimColor={selected !== 'avis'} label="ton avis ?" onPress={() => void markQa($, context.messageId, key, 'avis')} />
-        <Button
-          key={`q-${context.messageId}-${question.id}-simpler`}
-          plain
-          dimColor={selected !== 'simple'}
-          label="plus simple, avec un exemple"
-          onPress={() => void markQa($, context.messageId, key, 'simple')}
-        />
+        {isRich ? (
+          [
+            markButton(els, context, `q-${context.messageId}-${question.id}-opinion`, 'Ton avis', selected === 'avis', 'accent', () => void markQa($, context.messageId, key, 'avis')),
+            markButton(els, context, `q-${context.messageId}-${question.id}-simpler`, 'Plus simple', selected === 'simple', 'accent', () => void markQa($, context.messageId, key, 'simple')),
+          ]
+        ) : (
+          [
+            <Button key={`q-${context.messageId}-${question.id}-opinion`} plain dimColor={selected !== 'avis'} label="ton avis ?" onPress={() => void markQa($, context.messageId, key, 'avis')} />,
+            <Button
+              key={`q-${context.messageId}-${question.id}-simpler`}
+              plain
+              dimColor={selected !== 'simple'}
+              label="plus simple, avec un exemple"
+              onPress={() => void markQa($, context.messageId, key, 'simple')}
+            />,
+          ]
+        )}
         {noteButton($, els, key, `${question.id} · ${question.title}`, context)}
       </Box>
     </Box>,
@@ -639,10 +832,21 @@ function questionCard($: EngineInterface, els: Elements, question: Question, con
   )
 }
 
+/** Each kind of card by the icon that leads its title on the desktop, found from its key. */
+const BLOCK_ICONS: [string, IconName][] = [
+  ['qa-', 'qa'],
+  ['decisions-', 'check'],
+  ['picks-', 'flag'],
+  ['infos-', 'next'],
+  ['ask-', 'hand'],
+  ['reserves-', 'warning'],
+  ['brief-', 'report'],
+]
+
 /** A titled block with a one-line help under its title, so each part of a card says what it is for. */
-function block(els: Elements, key: string, title: string, help: string | null, color: string, body: RenderChildren, context: CardContext): RenderChildren {
+function block(els: Elements, key: string, title: string, help: string | null, color: string, body: RenderChildren, context: CardContext, cardIcon?: IconName): RenderChildren {
   const { Text } = els
-  const tone: Tone = color === 'warning' ? 'warning' : color === 'error' ? 'danger' : color === 'success' ? 'ok' : 'accent'
+  const tone: Tone = color === 'warning' ? 'warning' : color === 'error' ? 'danger' : color === 'success' ? 'ok' : color === 'subtle' ? 'muted' : 'accent'
   const helpText =
     help !== null ? (
       <Text key={`${key}-help`} size="caption" dimColor wrap="wrap">
@@ -653,7 +857,7 @@ function block(els: Elements, key: string, title: string, help: string | null, c
     els,
     key,
     context,
-    { icon: tone === 'warning' ? 'warning' : 'info', title, tone },
+    { icon: cardIcon ?? BLOCK_ICONS.find(([prefix]) => key.startsWith(prefix))?.[1] ?? (tone === 'warning' ? 'warning' : 'info'), title, tone },
     <Text size="caption" weight="semibold" color={color === 'subtle' ? undefined : color} dimColor={color === 'subtle'}>
       {title}
     </Text>,
@@ -749,23 +953,15 @@ function checkRows($: EngineInterface, els: Elements, checks: QaCheck[], context
     return (
       <Box key={`check-${context.messageId}-${index}`} flexDirection="column" gap="xs">
         <Box flexDirection="row" gap="sm" alignItems="center">
-          <Text size="caption" dimColor tabular>
-            {index + 1}.
-          </Text>
+          {rowIndex(els, context, index, chosen)}
           <Box flexGrow={1} flexShrink={1} minWidth={0}>
-            <Text wrap="wrap" weight={check.title !== null ? 'semibold' : 'regular'} color={chosen?.color}>
+            <Text wrap="wrap" weight={check.title !== null ? 'semibold' : 'regular'} color={rowColor(els, context, chosen)}>
               {name}
             </Text>
           </Box>
-          {QA_MARKS.map(option => (
-            <Button
-              key={`mark-${context.messageId}-${key}-${option.value}`}
-              plain
-              dimColor={mark !== option.value}
-              label={option.label}
-              onPress={() => void markQa($, context.messageId, key, option.value)}
-            />
-          ))}
+          {QA_MARKS.map(option =>
+            markButton(els, context, `mark-${context.messageId}-${key}-${option.value}`, option.label, mark === option.value, TONE_OF_COLOR[option.color] ?? 'accent', () => void markQa($, context.messageId, key, option.value)),
+          )}
           {noteButton($, els, key, label, context)}
         </Box>
         {check.title !== null && check.action === null && check.text !== '' && (
@@ -809,19 +1005,13 @@ function followUpRows($: EngineInterface, els: Elements, followUps: QaFollowUp[]
       <Box key={`follow-${context.messageId}-${index}`} flexDirection="column" gap="xs">
         <Box flexDirection="row" gap="sm" alignItems="center">
           <Box flexGrow={1} flexShrink={1} minWidth={0}>
-            <Text wrap="wrap" weight="semibold" color={chosen?.color}>
+            <Text wrap="wrap" weight="semibold" color={rowColor(els, context, chosen)}>
               {followUp.title}
             </Text>
           </Box>
-          {QA_MARKS.map(option => (
-            <Button
-              key={`mark-${context.messageId}-${key}-${option.value}`}
-              plain
-              dimColor={mark !== option.value}
-              label={option.label}
-              onPress={() => void markQa($, context.messageId, key, option.value)}
-            />
-          ))}
+          {QA_MARKS.map(option =>
+            markButton(els, context, `mark-${context.messageId}-${key}-${option.value}`, option.label, mark === option.value, TONE_OF_COLOR[option.color] ?? 'accent', () => void markQa($, context.messageId, key, option.value)),
+          )}
           {noteButton($, els, key, followUp.title, context)}
         </Box>
         {followUp.isClaimedOk && mark === undefined && (
@@ -879,23 +1069,15 @@ function compactCheckRows($: EngineInterface, els: Elements, checks: QaCheck[], 
           </Text>
         )}
         <Box flexDirection="row" gap="sm" alignItems="center">
-          <Text size="caption" dimColor tabular>
-            {index + 1}.
-          </Text>
+          {rowIndex(els, context, index, chosen)}
           <Box flexGrow={1} flexShrink={1} minWidth={0}>
-            <Text wrap="truncate-end" color={chosen?.color}>
+            <Text wrap="truncate-end" color={rowColor(els, context, chosen)}>
               {name}
             </Text>
           </Box>
-          {QA_MARKS.map(option => (
-            <Button
-              key={`mark-${context.messageId}-${key}-${option.value}`}
-              plain
-              dimColor={mark !== option.value}
-              label={option.label}
-              onPress={() => void markQa($, context.messageId, key, option.value)}
-            />
-          ))}
+          {QA_MARKS.map(option =>
+            markButton(els, context, `mark-${context.messageId}-${key}-${option.value}`, option.label, mark === option.value, TONE_OF_COLOR[option.color] ?? 'accent', () => void markQa($, context.messageId, key, option.value)),
+          )}
           {noteButton($, els, key, `QA ${index + 1} · ${truncate(name, 60)}`, context)}
         </Box>
       </Box>
@@ -914,7 +1096,7 @@ function qaBlock($: EngineInterface, els: Elements, shape: MessageShape, context
       `qa-${context.messageId}`,
       `À tester de ton côté · ${ok}/${plan.checks.length} OK${ko > 0 ? ` · ${ko} KO` : ''}`,
       'Le détail de chaque vérification est dans le message ci-dessus : marque ici ce que tu vois.',
-      ko > 0 ? 'error' : ok === plan.checks.length ? 'success' : 'subtle',
+      ko > 0 ? 'error' : 'success',
       compactCheckRows($, els, plan.checks, context),
       context,
     )
@@ -927,7 +1109,7 @@ function qaBlock($: EngineInterface, els: Elements, shape: MessageShape, context
       `qa-${context.messageId}`,
       `QA à refaire · ${ok}/${shape.followUps.length} OK${ko > 0 ? ` · ${ko} KO` : ''}`,
       'Les vérifications que Claude reprend après tes retours. Son message est au-dessus, tel quel ; marque ici chacune selon ce que tu vois.',
-      ko > 0 ? 'error' : ok === shape.followUps.length ? 'success' : 'subtle',
+      ko > 0 ? 'error' : 'success',
       followUpRows($, els, shape.followUps, context),
       context,
     )
@@ -939,8 +1121,8 @@ function qaBlock($: EngineInterface, els: Elements, shape: MessageShape, context
     els,
     `qa-${context.messageId}`,
     `À tester de ton côté · ${ok}/${plan.checks.length} OK${ko > 0 ? ` · ${ko} KO` : ''}`,
-    'Prépare, puis fais chaque vérification : OK si tu vois ce qui est attendu, KO sinon ; « 💬 note » ouvre une ligne dans le prompt pour décrire ce que tu vois.',
-    ko > 0 ? 'error' : ok === plan.checks.length ? 'success' : 'subtle',
+    'Prépare, puis fais chaque vérification : OK si tu vois ce qui est attendu, KO sinon ; « Note » ouvre une ligne dans le prompt pour décrire ce que tu vois.',
+    ko > 0 ? 'error' : 'success',
     [
       plan.preparation.length > 0 ? (
         <Text key={`qa-prep-title-${context.messageId}`} size="caption" weight="semibold" dimColor>
@@ -965,7 +1147,7 @@ function decisionsBlock($: EngineInterface, els: Elements, shape: MessageShape, 
     els,
     `decisions-${context.messageId}`,
     shape.decisionsTitle,
-    'Valide chacune (✓ OK) ou demande une correction (✎ corriger ouvre une ligne dans le prompt pour dire quoi changer).',
+    'Valide chacune, ou « Corriger » pour dire quoi changer.',
     'warning',
     [
       prose !== '' && context.isCompact !== true ? <Markdown key={`decisions-prose-${context.messageId}`} text={prose} /> : null,
@@ -977,10 +1159,10 @@ function decisionsBlock($: EngineInterface, els: Elements, shape: MessageShape, 
 
 const PICK_MARKS: MarkOption[] = [
   { value: 'ok', label: 'Reco OK', color: 'success' },
-  { value: 'ko', label: '✎ corriger', color: 'warning' },
+  { value: 'ko', label: 'Autre choix', color: 'warning' },
 ]
 
-/** A choice: the point, Claude's recommendation under it, the details folded into it; « Reco OK », or « ✎ corriger » that opens a line in the prompt. */
+/** A choice: the point, Claude's recommendation under it, the details folded into it; « Reco OK », or « Autre choix » that opens a line in the prompt. */
 function pickRows($: EngineInterface, els: Elements, picks: Pick[], offset: number, context: CardContext): RenderChildren {
   const { Box, Text, Button } = els
   return picks.map((pick, position) => {
@@ -992,36 +1174,37 @@ function pickRows($: EngineInterface, els: Elements, picks: Pick[], offset: numb
     return (
       <Box key={`pick-${context.messageId}-${index}`} flexDirection="column" gap="xs">
         <Box flexDirection="row" gap="sm" alignItems="center">
-          <Text size="caption" dimColor tabular>
-            {index + 1}.
-          </Text>
+          {rowIndex(els, context, index, chosen)}
           <Box flexGrow={1} flexShrink={1} minWidth={0}>
-            <Text wrap="wrap" weight="semibold" color={chosen?.color}>
+            <Text wrap="wrap" weight="semibold" color={rowColor(els, context, chosen)}>
               {pick.label}
             </Text>
           </Box>
-          {PICK_MARKS.map(option => (
-            <Button
-              key={`mark-${context.messageId}-${key}-${option.value}`}
-              plain
-              dimColor={mark !== option.value}
-              label={option.label}
-              onPress={() => {
-                void markQa($, context.messageId, key, option.value)
-                if (option.value === 'ko' && mark !== 'ko') void notePrompt($, `${label} — autre choix`)
-              }}
-            />
-          ))}
+          {PICK_MARKS.map(option =>
+            markButton(els, context, `mark-${context.messageId}-${key}-${option.value}`, option.label, mark === option.value, TONE_OF_COLOR[option.color] ?? 'accent', () => {
+              void markQa($, context.messageId, key, option.value)
+              if (option.value === 'ko' && mark !== 'ko') void notePrompt($, `${label} — autre choix`)
+            }),
+          )}
           {noteButton($, els, key, label, context)}
         </Box>
         {pick.reco !== null && (
           <Box paddingLeft={3}>
-            <Text wrap="wrap">
-              <Text weight="semibold" color="success">
-                Reco :{' '}
+            {richSvg(els, context) !== null ? (
+              <Text size="footnote" wrap="wrap" dimColor>
+                <Text size="footnote" weight="medium" color={GALET.text.sage}>
+                  Reco :{' '}
+                </Text>
+                {pick.reco}
               </Text>
-              {pick.reco}
-            </Text>
+            ) : (
+              <Text wrap="wrap">
+                <Text weight="semibold" color="success">
+                  Reco :{' '}
+                </Text>
+                {pick.reco}
+              </Text>
+            )}
           </Box>
         )}
         {(context.isCompact === true ? [] : pick.details).map((detail, detailIndex) => (
@@ -1043,7 +1226,7 @@ function picksBlock($: EngineInterface, els: Elements, shape: MessageShape, cont
     els,
     `picks-${context.messageId}`,
     'À trancher',
-    'Pour chaque point : « Reco OK » si tu suis la recommandation, « ✎ corriger » pour dire ce que tu préfères.',
+    '« Reco OK » pour suivre la recommandation, « Autre choix » pour dire ce que tu préfères.',
     'warning',
     pickRows($, els, shape.picks, 0, context),
     context,
@@ -1094,7 +1277,7 @@ function askBlock($: EngineInterface, els: Elements, shape: MessageShape, contex
     `ask-${context.messageId}`,
     "Ce que j'attends de toi",
     shape.asks.length > 0 || (!shape.hasCockpitBlock && shape.picks.length > 0)
-      ? 'Marque OK ce qui est fait, « Reco OK » si tu suis une recommandation ; « 💬 note » pour répondre en détail dans le prompt.'
+      ? 'Marque OK ce qui est fait, « Reco OK » si tu suis une recommandation ; « Note » pour répondre en détail dans le prompt.'
       : null,
     'claude',
     drawGroups(
@@ -1114,10 +1297,10 @@ function handoffBlock($: EngineInterface, els: Elements, shape: MessageShape, co
   if (shape.phrase === null) return null
   const phrase = shape.phrase
   return (
-    <Box key={`handoff-${context.messageId}`} flexDirection="row" gap="sm" alignItems="center" borderStyle="round" borderColor="subtle" paddingX="md" paddingY="sm">
+    <Box key={`handoff-${context.messageId}`} flexDirection="row" gap="sm" alignItems="center" {...(richSvg(els, context) !== null ? surface('stone') : { borderStyle: 'round', borderColor: 'subtle' })} paddingX="md" paddingY="sm">
       <Box flexGrow={1} flexShrink={1} minWidth={0}>
         <Text size="footnote" dimColor wrap="truncate-end">
-          📋 {phrase}
+          {phrase}
         </Text>
       </Box>
       <Button key={`handoff-copy-${context.messageId}`} label="Copier la reprise" onPress={() => void copyText($, phrase, 'Phrase de reprise')} />
@@ -1136,15 +1319,15 @@ export function renderQuestions($: EngineInterface, e: Event, shape: MessageShap
     <Box flexDirection="column" gap="sm">
       {rest}
       {shape.questions.map(question => questionCard($, els, question, context))}
+      {picksBlock($, els, shape, context)}
       {decisionsBlock($, els, shape, '', context)}
       {findingsTable($, els, shape.findings, context)}
       {qaBlock($, els, shape, context)}
       {shape.commits.map((commit, index) => commitCard($, els, commit, index, context))}
-      {handoffBlock($, els, shape, context)}
-      {picksBlock($, els, shape, context)}
       {askBlock($, els, shape, context)}
       {infosBlock(els, shape, context)}
       {filesRow($, els, shape.files, context)}
+      {handoffBlock($, els, shape, context)}
       {sendButton($, els, shape, context)}
       {shape.questions.length > 1 && answeredCount(context.marks) === 0 && (
         <Text size="caption" dimColor>
@@ -1171,8 +1354,12 @@ export function renderReport($: EngineInterface, e: Event, shape: MessageShape, 
     return `${items.length > 1 ? `${items.length} points · ` : ''}${truncate(first, 70)}`
   }
   return (
-    <Box flexDirection="column" gap="sm" borderStyle="round" borderColor="subtle" paddingX="md" paddingY="sm">
+    <Box flexDirection="column" gap="sm" {...(richSvg(els, context) !== null ? surface('stone') : { borderStyle: 'round', borderColor: 'subtle' })} paddingX="md" paddingY={richSvg(els, context) !== null ? 'md' : 'sm'}>
       <Box flexDirection="row" gap="sm" alignItems="center">
+        {(() => {
+          const Svg = richSvg(els, context)
+          return Svg === null ? null : <Svg key={`report-icon-${context.messageId}`} alt="Rapport" source={icon('report', { tone: 'muted', size: 15 })} width={15} height={15} />
+        })()}
         <Box flexGrow={1} flexShrink={1} minWidth={0}>
           <Text weight="semibold" wrap="wrap">
             {report.title}
@@ -1187,9 +1374,11 @@ export function renderReport($: EngineInterface, e: Event, shape: MessageShape, 
 
       {done.length > 0 && (
         <Box key={`done-${context.messageId}`} flexDirection="column" gap="xs">
-          <Text size="caption" weight="semibold" dimColor>
-            Ce qui a été fait
-          </Text>
+          {richSvg(els, context) === null && (
+            <Text size="caption" weight="semibold" dimColor>
+              Ce qui a été fait
+            </Text>
+          )}
           {done.map(part => {
             const isOpen = context.sectionsOpen[part.kind] === true
             return (
@@ -1247,15 +1436,15 @@ export function renderDeliverables($: EngineInterface, e: Event, shape: MessageS
   return (
     <Box flexDirection="column" gap="sm">
       {full}
+      {picksBlock($, els, shape, context)}
       {decisionsBlock($, els, shape, '', context)}
       {findingsTable($, els, shape.findings, context)}
       {qaBlock($, els, shape, context)}
       {shape.commits.map((commit, index) => commitCard($, els, commit, index, context))}
-      {handoffBlock($, els, shape, context)}
-      {picksBlock($, els, shape, context)}
       {askBlock($, els, shape, context)}
       {infosBlock(els, shape, context)}
       {filesRow($, els, shape.files, context)}
+      {handoffBlock($, els, shape, context)}
       {sendButton($, els, shape, context)}
     </Box>
   )
@@ -1281,7 +1470,7 @@ export function renderLong($: EngineInterface, e: Event, context: CardContext, t
       {filesRow($, els, fileRefs(text), context)}
       {context.brief === null && (
         <Box flexDirection="row" justifyContent="flex-end">
-          <Button key={`brief-${context.messageId}-button`} plain dimColor label="✦ En bref" onPress={() => void summarize($, context.messageId, text)} />
+          <Button key={`brief-${context.messageId}-button`} plain dimColor label="En bref" onPress={() => void summarize($, context.messageId, text)} />
         </Box>
       )}
     </Box>

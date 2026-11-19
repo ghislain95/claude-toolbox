@@ -1,6 +1,6 @@
 {
   "name": "conversation-cards",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Claude's messages drawn as cards in the transcript, in every project: questions with their options, end-of-task reports, QA, the cockpit block, commits; compact tool rows; the context in the spinner; the display contract that keeps those shapes",
   "author": {
     "name": "ghislain95"

@@ -82,7 +82,7 @@ describe('next action', () => {
 
   test('apply: a stale graph first, then the current group', () => {
     expect(ask({ ...base, graph: { state: 'stale', newerFiles: 2, reason: '2 fichiers', builtAt: 1 } }).actions[0]?.kind).toBe('graph')
-    expect(ask(base)).toMatchObject({ title: "Continuer l'apply · groupe 2", detail: 'Front · 1/7' })
+    expect(ask(base)).toMatchObject({ title: "Continuer l'apply · groupe 2", detail: 'Front · 1 sur 7' })
   })
 
   test('closing walks review, verify with the commit copy, then archive', () => {
