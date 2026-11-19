@@ -249,7 +249,7 @@ const MESSAGE = (requestId: string, text: string) => ({
   props: { text, isFirstOfReply: true },
 })
 
-/** A text the card shows, as a Text or as the title of its ribbon (the alt of the Svg). */
+/** A text the card shows, as a Text or as the alt of a drawing. */
 async function shows(ui: { find: (query: { type?: string; text?: string | RegExp }) => Promise<unknown>; findAll: (query: { type?: string }) => Promise<{ props: Record<string, unknown> }[]> }, text: string | RegExp): Promise<boolean> {
   if ((await ui.find({ type: 'Text', text })) !== undefined) return true
   const alts = (await ui.findAll({ type: 'Svg' })).map(found => String(found.props.alt ?? ''))
@@ -330,8 +330,9 @@ test('a question card shows every option with its explanation and the reason, an
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: 'conversation-cards', surface, ...MESSAGE(`m1-${surface}`, text) })
     expect(await shows(ui, 'Découpage de S4')).toBe(true)
-    expect(await shows(ui, '★ recommandé')).toBe(true)
-    expect(await shows(ui, /Pourquoi B/)).toBe(true)
+    // The terminal keeps its star and « Pourquoi B »; the desktop's Galet tiles say it quietly.
+    expect(await shows(ui, surface === 'terminal' ? '★ recommandé' : /^\s*recommandé$/)).toBe(true)
+    expect(await shows(ui, surface === 'terminal' ? /Pourquoi B/ : /Recommandation ·/)).toBe(true)
     expect(await shows(ui, /17 touche rendering/)).toBe(true)
     expect(await shows(ui, 'ENGINE:Deux points à trancher.')).toBe(true)
     expect(await shows(ui, /### Q1/)).toBe(false)
@@ -404,7 +405,6 @@ test('a report: asks and decisions to answer, reserves open, sections one by one
   await ui.press({ key: 'finding-file-m2-0' })
   expect(seen.opened.at(-1)).toContain('--line 12 /repo/frontend/src/loader.ts')
   expect(await shows(ui, 'Commité · abc1234')).toBe(true)
-  expect(await shows(ui, 'Ce qui a été fait')).toBe(true)
   await ui.press({ key: 'commit-copy-m2-0' })
   expect(seen.copied.at(-1)).toBe('feat(offline-catalog): add the catalog loader\n\nLoads the manifest.')
   await ui.press({ key: 'mark-m2-ask:0-ok' })
@@ -651,50 +651,52 @@ test('the block’s « vérifier » lines name the checks of a compact QA card',
   expect(await ui.find({ type: 'Button', key: 'mark-vf-qa:1-ko' })).toBeDefined()
 })
 
-// ---------------------------------------------------------------- Terre de Sienne
+// ---------------------------------------------------------------- Galet
 
 /** Any drawing the kit mounted: only its `findAll` is read. */
 type Drawing = Pick<Awaited<ReturnType<Engine['ui']['mount']>>, 'findAll'>
 
-async function ribbons(ui: Drawing): Promise<{ alt: string; source: string }[]> {
-  return (await ui.findAll({ type: 'Svg' })).map(found => ({ alt: String(found.props.alt), source: String(found.props.source) }))
+/** The « en attente » dot of a question, as its Svg source; '' when the question has none. */
+async function waitingDot(ui: Drawing): Promise<string> {
+  const dots = (await ui.findAll({ type: 'Svg' })).filter(found => found.props.alt === 'en attente')
+  return String(dots[0]?.props.source ?? '')
 }
 
 const ONE_QUESTION = ['### Q1 · Découpage de S4', '- A · une session — long', '- B · découper (recommandé) — court'].join('\n')
 
-test('a question opens on a ribbon that shimmers until answered; the terminal keeps its text header', async ($, on) => {
+test('a question opens on its Q1 tag and a dot that breathes until answered; the terminal keeps its text header', async ($, on) => {
   world(on, '/repo', projectTree())
   await start($)
   const ui = await $.ui.mount({ plugin: 'conversation-cards', surface: 'desktop', ...MESSAGE('rq', ONE_QUESTION) })
-  const before = (await ribbons(ui)).find(drawn => drawn.alt.includes('Découpage de S4'))
-  expect(before?.source).toContain('>Q1<')
-  expect(before?.source).toContain('class="shimmer')
+  expect(await shows(ui, 'Q1')).toBe(true)
+  expect(await shows(ui, 'Découpage de S4')).toBe(true)
+  expect(await waitingDot(ui)).toContain('class="wave')
   await ui.press({ key: 'q-rq-Q1-B' })
-  const after = (await ribbons(ui)).find(drawn => drawn.alt.includes('Découpage de S4'))
-  expect(after?.source).not.toContain('class="shimmer')
-  expect(after?.source).toContain('→ B')
+  expect(await waitingDot(ui)).toBe('')
+  expect(await shows(ui, '→ B')).toBe(true)
   const text = await $.ui.mount({ plugin: 'conversation-cards', surface: 'terminal', ...MESSAGE('rq-t', ONE_QUESTION) })
   expect(await text.findAll({ type: 'Svg' })).toHaveLength(0)
   expect(await shows(text, 'Découpage de S4')).toBe(true)
 })
 
-test('a commit that landed draws its check on the ribbon', async ($, on) => {
+test('a commit that landed says so in its title, with a check', async ($, on) => {
   world(on, '/repo', projectTree())
   await start($)
   await $.command.run({ command: 'cartes', args: '', origin: ORIGIN, presentation: PRESENTATION })
   const text = ['Fait.', '', '```text', 'feat(offline-catalog): add the catalog infrastructure', '', 'Body line.', '```'].join('\n')
   const ui = await $.ui.mount({ plugin: 'conversation-cards', surface: 'desktop', ...MESSAGE('rc', text) })
-  const commit = (await ribbons(ui)).find(drawn => drawn.alt.includes('Commit'))
-  expect(commit?.source).toContain('class="draw"')
-  expect(commit?.source).toContain('abc1234')
+  expect(await shows(ui, 'Commité · abc1234')).toBe(true)
+  expect((await ui.findAll({ type: 'Svg' })).some(found => found.props.alt === 'fait')).toBe(true)
 })
 
-test('card frames carry the Sienne accent border', async ($, on) => {
+test('cards are Galet pebbles: a pastel of their tone, round corners, no visible rim', async ($, on) => {
   world(on, '/repo', projectTree())
   await start($)
   const ui = await $.ui.mount({ plugin: 'conversation-cards', surface: 'desktop', ...MESSAGE('rb', ONE_QUESTION) })
   const frames = await ui.findAll({ type: 'Box' })
-  expect(frames.some(found => found.props.borderColor === 'rgba(192,112,42,.45)')).toBe(true)
+  expect(frames.some(found => found.props.backgroundColor === 'rgba(191,111,58,.10)' && found.props.borderStyle === 'round' && found.props.borderColor === 'rgba(0,0,0,0)')).toBe(true)
+  const everything = JSON.stringify(frames.map(found => found.props))
+  expect(everything).not.toContain('rgba(192,112,42,.45)"')
 })
 
 test('outside OpenSpec, a commit card does not ask for a change-id scope', async ($, on) => {
@@ -713,13 +715,13 @@ test('only the latest reply moves: once the person sends anything, the earlier q
   world(on, '/repo', projectTree())
   await start($)
   const ui = await $.ui.mount({ plugin: 'conversation-cards', surface: 'desktop', ...MESSAGE('old', ONE_QUESTION) })
-  const ribbonOf = async () => (await ribbons(ui)).find(drawn => drawn.alt.includes('Découpage de S4'))?.source ?? ''
-  expect(await ribbonOf()).toContain('class="shimmer')
+  expect(await waitingDot(ui)).toContain('class="wave')
   // Answered by typing, not through the card: the question gets no mark, yet it is settled.
   await $.prompt.submit({ text: 'On découpe.', wait: false, origin: ORIGIN } as never)
-  expect(await ribbonOf()).not.toContain('class="shimmer')
-  expect(await ribbonOf()).toContain('en attente')
+  expect(await waitingDot(ui)).not.toContain('class="wave')
+  expect(await waitingDot(ui)).not.toBe('')
+  expect(await shows(ui, 'en attente')).toBe(true)
   // Claude's next reply asks again: that one moves.
   const next = await $.ui.mount({ plugin: 'conversation-cards', surface: 'desktop', ...MESSAGE('new', ONE_QUESTION) })
-  expect((await ribbons(next)).find(drawn => drawn.alt.includes('Découpage de S4'))?.source).toContain('class="shimmer')
+  expect(await waitingDot(next)).toContain('class="wave')
 })

@@ -1,45 +1,130 @@
 // Copied from shared/sienne.ts by scripts/sync-shared.sh: edit the original, not this copy.
-// Shared by the mods of this repository: the Terre de Sienne theme. Colour tokens for the light and dark
-// themes, the colours native elements may use, and the small SVG drawings that give the mods their relief
-// and motion. Copied into each mod's hooks/shared/ by scripts/sync-shared.sh: edit it here, then run the script.
+// Shared by the mods of this repository: the Galet look (successor of Terre de Sienne). Soft pastel surfaces
+// with round corners and no visible rim, one tone per kind of card, flat drawings with no gradient, glass,
+// shadow or sweeping light. Copied into each mod's hooks/shared/ by scripts/sync-shared.sh: edit it here,
+// then run the script.
 //
-// Every drawing is a standalone <svg>. With scheme 'auto' (the default) it carries both themes and switches
-// with prefers-color-scheme; 'light' or 'dark' pins one, for a surface that does not report the scheme.
-// Every animation stops under prefers-reduced-motion.
+// Two kinds of colour live here:
+// - GALET: the raw colours a native element (Box, Text) may carry. A native colour has one value for the
+//   light and the dark theme, so every fill is translucent: it reads as a pale pastel on light and a deep one
+//   on dark. A Box with a fill alone is drawn with square corners on the desktop; a round border rounds it,
+//   so every surface carries a round border in a colour that does not show (`surface`).
+// - TOKENS: the colours of the SVG drawings, which carry both themes and switch with prefers-color-scheme.
+//
+// Every drawing is a standalone <svg>. With scheme 'auto' (the default) it carries both themes; 'light' or
+// 'dark' pins one. Every animation stops under prefers-reduced-motion.
 
 export type Scheme = 'auto' | 'light' | 'dark'
 export type Tone = 'ok' | 'running' | 'warning' | 'danger' | 'accent' | 'muted'
-export type TokenName =
-  | 'base' | 'halo1' | 'halo2' | 'halo3' | 'text' | 'mute' | 'accent' | 'accent2'
-  | 'ok' | 'running' | 'warning' | 'danger' | 'track' | 'shadow' | 'highlight' | 'glass' | 'pill1' | 'pill2'
+export type TokenName = 'base' | 'halo1' | 'halo2' | 'halo3' | 'text' | 'mute' | 'accent' | 'ok' | 'running' | 'warning' | 'danger' | 'track' | 'disc'
 
 export const TOKENS: { light: Record<TokenName, string>; dark: Record<TokenName, string> } = {
   light: {
     base: '#f4ece0', halo1: '#eab26a', halo2: '#d98a5c', halo3: '#f0cf9a',
-    text: '#3b2617', mute: '#8a6f58', accent: '#b8621f', accent2: '#d98a3d',
-    ok: '#5f9a62', running: '#c27a2c', warning: '#c9902a', danger: '#b4473a',
-    track: 'rgba(122,72,34,.14)', shadow: 'rgba(110,60,20,.22)', highlight: 'rgba(255,255,255,.9)',
-    glass: 'rgba(255,250,242,.78)', pill1: '#fffaf3', pill2: '#f3e4cf',
+    text: '#1f1b17', mute: '#6b635b', accent: '#bf6f3a',
+    ok: '#5d8a5a', running: '#bf6f3a', warning: '#a8802c', danger: '#b0503f',
+    track: 'rgba(40,28,16,.10)', disc: 'rgba(40,28,16,.08)',
   },
   dark: {
     base: '#17110d', halo1: '#c8693c', halo2: '#e0a458', halo3: '#7a3b22',
-    text: '#f2e7d7', mute: '#a08c77', accent: '#e8ae62', accent2: '#f3c47a',
-    ok: '#9fd08a', running: '#f0b866', warning: '#e8c06a', danger: '#e07a68',
-    track: 'rgba(255,230,200,.10)', shadow: 'rgba(0,0,0,.55)', highlight: 'rgba(255,255,255,.16)',
-    glass: 'rgba(40,29,21,.72)', pill1: '#3b2b1f', pill2: '#22180f',
+    text: '#ece6df', mute: '#a49b91', accent: '#e3a46e',
+    ok: '#93bf8c', running: '#e3a46e', warning: '#dcb466', danger: '#e08a78',
+    track: 'rgba(255,240,225,.12)', disc: 'rgba(255,240,225,.10)',
   },
 }
 
-/** The only raw colours a native element may carry: one value each, legible on the light and the dark theme. */
+/** A kind of card, by the colour family it is drawn in. */
+export type Family = 'ochre' | 'sage' | 'honey' | 'rose' | 'stone'
+
+/**
+ * The raw colours native elements may carry: one value each, legible on the light and the dark theme.
+ * `text` colours are mid tones (≥ 3:1 on both bases for semibold); fills are translucent pastels.
+ */
+export const GALET = {
+  text: { ochre: '#c0702a', sage: '#568a52', honey: 'warning', rose: '#c0503f', stone: 'subtle' } as Record<Family, string>,
+  /** A card's surface. */
+  fill: {
+    ochre: 'rgba(191,111,58,.10)',
+    sage: 'rgba(93,138,90,.12)',
+    honey: 'rgba(190,140,40,.12)',
+    rose: 'rgba(176,80,63,.10)',
+    stone: 'rgba(128,120,110,.09)',
+  } as Record<Family, string>,
+  /** A tile or a tag inside a card: the card's tint once more, so it reads as a deeper pebble on either theme. */
+  deep: {
+    ochre: 'rgba(191,111,58,.12)',
+    sage: 'rgba(93,138,90,.16)',
+    honey: 'rgba(190,140,40,.14)',
+    rose: 'rgba(176,80,63,.13)',
+    stone: 'rgba(128,120,110,.11)',
+  } as Record<Family, string>,
+  /** Under the pointer: one step deeper. */
+  hover: {
+    ochre: 'rgba(191,111,58,.20)',
+    sage: 'rgba(93,138,90,.24)',
+    honey: 'rgba(190,140,40,.22)',
+    rose: 'rgba(176,80,63,.20)',
+    stone: 'rgba(128,120,110,.18)',
+  } as Record<Family, string>,
+} as const
+
+/**
+ * The app's light or dark mode, as the session's `theme` setting names it (`dark`, `light-daltonized`…);
+ * `auto` when it follows the system, which a native colour cannot know.
+ */
+export type Mode = 'light' | 'dark' | 'auto'
+
+export function modeOf(theme: unknown): Mode {
+  return typeof theme !== 'string' ? 'auto' : theme.startsWith('dark') ? 'dark' : theme.startsWith('light') ? 'light' : 'auto'
+}
+
+/**
+ * A tile or a chip inside a card: white on the light theme, a faint veil of light on the dark one (one shade
+ * above the card, as the mock draws them). Where the mode is unknown, the card's tint once more.
+ */
+export function tileFill(mode: Mode, family: Family = 'ochre'): string {
+  return mode === 'light' ? '#ffffff' : mode === 'dark' ? 'rgba(255,255,255,.06)' : GALET.deep[family]
+}
+
+/**
+ * A soft chip's props: a pill with round ends and no rim, as tall as its text. Around a Button, `pressable`
+ * leaves no margin and clips what passes the round edge, so the button's hover is exactly the pill.
+ */
+export function chip(
+  fill: string,
+  o: { pressable?: boolean } = {},
+): { borderStyle: 'round'; borderColor: string; backgroundColor: string; paddingX: number; paddingY: number; overflow?: 'hidden' } {
+  const base = { borderStyle: 'round' as const, borderColor: RIM, backgroundColor: fill, paddingX: o.pressable === true ? 0 : 1, paddingY: 0 }
+  // The button's own hover is clipped to the pill's round edge, so it never shows past it.
+  return o.pressable === true ? { ...base, overflow: 'hidden' } : base
+}
+
+/** The border a Galet surface carries: round, for the corners, in a colour that does not show. */
+export const RIM = 'rgba(0,0,0,0)'
+
+/** The props of a Galet surface: a pastel fill with round corners and no visible rim. */
+export function surface(family: Family, depth: 'fill' | 'deep' | 'hover' = 'fill'): { borderStyle: 'round'; borderColor: string; backgroundColor: string } {
+  return { borderStyle: 'round', borderColor: RIM, backgroundColor: GALET[depth][family] }
+}
+
+/** Which family a drawing tone belongs to. */
+export function familyOf(tone: Tone): Family {
+  return tone === 'ok' ? 'sage' : tone === 'warning' ? 'honey' : tone === 'danger' ? 'rose' : tone === 'muted' ? 'stone' : 'ochre'
+}
+
+/**
+ * The colours earlier versions gave native elements; kept for the terminal's framed cards and the text that
+ * names a tone. Accent, sage and danger stay legible on both bases.
+ */
 export const NATIVE = {
   accent: '#c0702a',
   accentBorder: 'rgba(192,112,42,.45)',
-  accentFill: 'rgba(217,138,61,.12)',
+  accentFill: 'rgba(191,111,58,.10)',
   ok: '#568a52',
   danger: '#c0503f',
 } as const
 
-/** The narrowest a full-width drawing (ribbon, timeline) is ever drawn, in CSS pixels. */
+/** The narrowest a full-width drawing (the timeline) is ever drawn, in CSS pixels. */
 export const MIN_WIDTH = 240
 
 const TONE_VAR: Record<Tone, string> = {
@@ -61,17 +146,11 @@ export function styleSheet(scheme: Scheme = 'auto'): string {
       : `:root{${vars(scheme)}}`
   return (
     `<style>${colours}` +
-    `.wave{transform-box:fill-box;transform-origin:center;animation:wave 1.9s ${EASE} infinite}` +
-    `@keyframes wave{0%{opacity:.55;transform:scale(1)}80%,100%{opacity:0;transform:scale(1.9)}}` +
-    `.fill{animation:fill 1.5s ${EASE} both}@keyframes fill{from{stroke-dashoffset:var(--from)}}` +
-    `.grow{transform-box:fill-box;transform-origin:left center;animation:grow 1.2s ${EASE} both}@keyframes grow{from{transform:scaleX(0)}}` +
-    `.draw{animation:draw .6s ${EASE} .4s both}@keyframes draw{from{stroke-dashoffset:var(--from)}}` +
-    `.glide{animation:slide 1.8s linear infinite}` +
-    `@keyframes slide{from{transform:translateX(var(--from-x))}to{transform:translateX(var(--to-x))}}` +
-    // What waits for an answer: one sweep, then a rest, for as long as it waits; it catches the eye without tiring it.
-    `.shimmer{animation:sweep 5s ${EASE} infinite}` +
-    `@keyframes sweep{0%{transform:translateX(var(--from-x))}45%,100%{transform:translateX(var(--to-x))}}` +
-    `.calm{animation-duration:3.6s}` +
+    // What is running breathes, slowly; what arrives eases in once.
+    `.wave{transform-box:fill-box;transform-origin:center;animation:wave 2.4s ${EASE} infinite}` +
+    `@keyframes wave{0%{opacity:.4;transform:scale(1)}80%,100%{opacity:0;transform:scale(2.1)}}` +
+    `.fill{animation:fill 1.1s ${EASE} both}@keyframes fill{from{stroke-dashoffset:var(--from)}}` +
+    `.grow{transform-box:fill-box;transform-origin:left center;animation:grow .9s ${EASE} both}@keyframes grow{from{transform:scaleX(0)}}` +
     `.drift1{animation:drift1 24s ease-in-out infinite alternate}@keyframes drift1{to{transform:translate(220px,140px) scale(1.15)}}` +
     `.drift2{animation:drift2 31s ease-in-out infinite alternate}@keyframes drift2{to{transform:translate(-260px,-120px) scale(.9)}}` +
     `.drift3{animation:drift3 38s ease-in-out infinite alternate}@keyframes drift3{to{transform:translate(160px,-160px)}}` +
@@ -88,10 +167,6 @@ function clamp01(value: number): number {
   return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0
 }
 
-function safeId(id: string): string {
-  return `s-${id.replace(/[^A-Za-z0-9_-]/g, '_')}`
-}
-
 export function escapeXml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 }
@@ -102,7 +177,7 @@ export function fitText(text: string, maxPx: number, pxPerChar = 7): string {
   return text.length <= max ? text : `${text.slice(0, Math.max(1, max - 1)).trimEnd()}…`
 }
 
-/** A status dot; a pulsing one sends out a wave; a hollow one is a ring, for a step still ahead. */
+/** A status dot; a pulsing one breathes out a soft wave; a hollow one is a ring, for a step still ahead. */
 export function dot(tone: Tone, o: { pulse?: boolean; hollow?: boolean; size?: number; scheme?: Scheme } = {}): string {
   const size = o.size ?? 12
   const c = size / 2
@@ -115,57 +190,46 @@ export function dot(tone: Tone, o: { pulse?: boolean; hollow?: boolean; size?: n
   return `${open(size, size, o.scheme ?? 'auto')}${wave}<circle cx="${c}" cy="${c}" r="${r}" ${fill}/></svg>`
 }
 
-/** A ring filled to `fraction` from twelve o'clock, filling up as it appears; from 48 px, a glass disc under it. */
+/** A ring filled to `fraction` from twelve o'clock, a flat stroke with round caps that fills as it appears. */
 export function ring(fraction: number, o: { size?: number; tone?: Tone; label?: string; scheme?: Scheme; id?: string } = {}): string {
   const size = o.size ?? 16
-  const id = safeId(o.id ?? 'ring')
-  const isLarge = size >= 48
-  const stroke = isLarge ? Math.round(size / 11) : size >= 24 ? 3 : 2.5
+  const stroke = size >= 48 ? 5 : size >= 24 ? 3 : 2.5
   const c = size / 2
-  const r = c - stroke / 2 - (isLarge ? 4 : 0)
+  const r = c - stroke / 2 - (size >= 48 ? 1 : 0)
   const circumference = 2 * Math.PI * r
   const offset = circumference * (1 - clamp01(fraction))
-  const tone = o.tone ?? 'accent'
-  const paint = tone === 'accent' ? `url(#${id}-g)` : TONE_VAR[tone]
-  const defs =
-    `<defs><linearGradient id="${id}-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--accent2)"/><stop offset="1" style="stop-color:var(--halo1)"/></linearGradient>` +
-    (isLarge ? `<filter id="${id}-s" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="2" stdDeviation="2.5" style="flood-color:var(--shadow)"/></filter>` : '') +
-    `</defs>`
-  const disc = isLarge ? `<circle cx="${c}" cy="${c}" r="${c - 2}" style="fill:var(--glass)" filter="url(#${id}-s)"/>` : ''
+  const paint = TONE_VAR[o.tone ?? 'accent']
   const label =
     o.label !== undefined
-      ? `<text x="${c}" y="${c + size * 0.07}" text-anchor="middle" dominant-baseline="middle" font-family="${FONT}" font-size="${Math.round(size * 0.22)}" font-weight="700" style="fill:var(--text)">${escapeXml(o.label)}</text>`
+      ? `<text x="${c}" y="${c}" text-anchor="middle" dominant-baseline="central" font-family="${FONT}" font-size="${Math.round(size * 0.24)}" font-weight="500" style="fill:var(--text)">${escapeXml(o.label)}</text>`
       : ''
   return (
-    `${open(size, size, o.scheme ?? 'auto')}${defs}${disc}` +
+    `${open(size, size, o.scheme ?? 'auto')}` +
     `<circle cx="${c}" cy="${c}" r="${r.toFixed(2)}" fill="none" stroke-width="${stroke}" style="stroke:var(--track)"/>` +
-    `<circle class="fill" cx="${c}" cy="${c}" r="${r.toFixed(2)}" fill="none" stroke-width="${stroke}" stroke-linecap="round" stroke="${paint}" ` +
+    `<circle class="fill" cx="${c}" cy="${c}" r="${r.toFixed(2)}" fill="none" stroke-width="${stroke}" stroke-linecap="round" ` +
     `stroke-dasharray="${circumference.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}" style="--from:${circumference.toFixed(2)};stroke:${paint}" transform="rotate(-90 ${c} ${c})"/>` +
     `${label}</svg>`
   )
 }
 
-/** A bar filled to `fraction`, growing as it appears; a running one carries a light that moves along it. */
-export function bar(width: number, fraction: number, o: { running?: boolean; scheme?: Scheme; id?: string } = {}): string {
+/**
+ * A soft bar filled to `fraction`, growing once as it appears. A finished one (`done`) is drawn in sage, paler,
+ * so the eye goes to what is still under way.
+ */
+export function bar(width: number, fraction: number, o: { done?: boolean; tone?: Tone; scheme?: Scheme; id?: string } = {}): string {
   const w = Math.max(40, Math.round(width))
-  const id = safeId(o.id ?? 'bar')
+  const h = 5
   const filled = Math.round(w * clamp01(fraction))
-  const shimmer =
-    o.running === true && filled > 0
-      ? `<g clip-path="url(#${id}-c)"><rect class="glide motion" x="0" y="2" width="40" height="6" fill="url(#${id}-l)" style="--from-x:-40px;--to-x:${filled}px"/></g>`
-      : ''
+  const tone = o.done === true ? 'ok' : o.tone ?? 'accent'
   return (
-    `${open(w, 10, o.scheme ?? 'auto')}<defs>` +
-    `<linearGradient id="${id}-g" x1="0" x2="1"><stop offset="0" style="stop-color:var(--accent)"/><stop offset="1" style="stop-color:var(--accent2)"/></linearGradient>` +
-    `<linearGradient id="${id}-l" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".6"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>` +
-    `<clipPath id="${id}-c"><rect x="0" y="2" width="${filled}" height="6" rx="3"/></clipPath></defs>` +
-    `<rect x="0" y="2" width="${w}" height="6" rx="3" style="fill:var(--track)"/>` +
-    (filled > 0 ? `<rect class="grow" x="0" y="2" width="${filled}" height="6" rx="3" fill="url(#${id}-g)"/>` : '') +
-    `${shimmer}</svg>`
+    `${open(w, h, o.scheme ?? 'auto')}` +
+    `<rect width="${w}" height="${h}" rx="${h / 2}" style="fill:var(--track)"/>` +
+    (filled > 0 ? `<rect class="grow" width="${filled}" height="${h}" rx="${h / 2}" style="fill:${TONE_VAR[tone]}"${o.done === true ? ' opacity=".55"' : ''}/>` : '') +
+    `</svg>`
   )
 }
 
-export type IconName = 'question' | 'report' | 'qa' | 'commit' | 'check' | 'tool' | 'info' | 'warning' | 'cockpit'
+export type IconName = 'question' | 'report' | 'qa' | 'commit' | 'check' | 'tool' | 'info' | 'warning' | 'cockpit' | 'flag' | 'hand' | 'next' | 'file' | 'chevron' | 'chevronDown'
 
 /** Each icon drawn with strokes in an 18 × 18 box. */
 const ICON_PATHS: Record<IconName, string> = {
@@ -178,118 +242,70 @@ const ICON_PATHS: Record<IconName, string> = {
   info: '<circle cx="9" cy="9" r="7"/><path d="M9 8v4.5M9 5.5v.1"/>',
   warning: '<path d="M9 2.5l7 12.5H2z"/><path d="M9 7.5v3.5M9 13v.1"/>',
   cockpit: '<circle cx="9" cy="9" r="7"/><path d="M9 9l3.5-3.5"/><path d="M4.5 11.5h1.5M12 11.5h1.5"/>',
+  flag: '<path d="M4 16V3h9l-1.7 3.2L13 9.5H4"/>',
+  hand: '<path d="M3 11.5l4.2 3.5h6.3l1.7-6.8-1.7-.7-1.5 2.5V3.5l-1.8-.3-.5 5.3-.6-6.3-1.9.1.1 6.3L5 5.5l-1.7.5z"/>',
+  next: '<path d="M3 9h11M10 4.8L14.2 9 10 13.2"/>',
+  file: '<path d="M4 2.3h6l4 4v9.4H4z"/><path d="M10 2.3v4h4"/>',
+  chevron: '<path d="M6.5 4.5L11 9l-4.5 4.5"/>',
+  chevronDown: '<path d="M4.5 6.5L9 11l4.5-4.5"/>',
 }
 
-function iconGroup(name: IconName, x: number, y: number, size: number, colour: string, draw: boolean): string {
-  const scale = size / 18
-  const drawn = draw ? ` class="draw" stroke-dasharray="24" stroke-dashoffset="0" style="--from:24;stroke:${colour}"` : ` style="stroke:${colour}"`
-  return `<g transform="translate(${x} ${y}) scale(${scale})" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"${drawn}>${ICON_PATHS[name]}</g>`
-}
-
-/** A small stroked icon; `draw` traces it as it appears (the commit check). */
-export function icon(name: IconName, o: { size?: number; tone?: Tone; draw?: boolean; scheme?: Scheme } = {}): string {
+/** A small stroked icon. */
+export function icon(name: IconName, o: { size?: number; tone?: Tone; scheme?: Scheme } = {}): string {
   const size = o.size ?? 16
-  return `${open(size, size, o.scheme ?? 'auto')}${iconGroup(name, 0, 0, size, TONE_VAR[o.tone ?? 'accent'], o.draw === true)}</svg>`
-}
-
-/**
- * A card's header: badge or icon, title, meta on the right, a gradient that fades to the right (so a width a
- * little short of the slot never shows) and a rule underneath. A waiting one shimmers and its badge sends a wave.
- */
-export function ribbon(
-  width: number,
-  o: {
-    id: string
-    icon: IconName | { badge: string }
-    title: string
-    meta?: string
-    tone?: Tone
-    waiting?: boolean
-    done?: boolean
-    /** Rounds the top corners, to run parallel to the corners of the card the ribbon heads. */
-    radius?: number
-    scheme?: Scheme
-  },
-): string {
-  const w = Math.max(MIN_WIDTH, Math.round(width))
-  const h = 36
-  const id = safeId(o.id)
-  const tone = o.tone ?? 'accent'
-  const colour = TONE_VAR[tone]
-  const top = tone === 'accent' ? 'var(--accent2)' : colour
-  const isWaiting = o.waiting === true
-  const radius = Math.max(0, Math.min(h / 2, o.radius ?? 0))
-  const meta = o.meta !== undefined ? escapeXml(fitText(o.meta, w * 0.25, 6)) : ''
-  const titleRoom = w - 46 - (o.meta !== undefined ? Math.min(w * 0.25, o.meta.length * 6) + 16 : 0) - (o.done === true ? 24 : 0)
-  const title = escapeXml(fitText(o.title, titleRoom, 7.4))
-  const lead =
-    typeof o.icon === 'string'
-      ? iconGroup(o.icon, 9, 9, 18, colour, false)
-      : `<circle cx="18" cy="18" r="10" fill="url(#${id}-b)"/>` +
-        (isWaiting
-          ? `<circle class="wave calm motion" cx="18" cy="18" r="10" fill="none" style="stroke:${colour}"/>`
-          : '') +
-        `<text x="18" y="18" text-anchor="middle" dominant-baseline="central" font-family="${FONT}" font-size="9.5" font-weight="800" style="fill:var(--pill1)">${escapeXml(o.icon.badge.slice(0, 3))}</text>`
-  const shimmer = isWaiting
-    ? `<rect class="shimmer motion" x="0" width="110" height="${h}" fill="url(#${id}-l)" style="--from-x:-110px;--to-x:${w}px"/>`
-    : ''
-  const check = o.done === true ? iconGroup('check', w - 26, 9, 18, 'var(--ok)', true) : ''
+  const scale = size / 18
   return (
-    `${open(w, h, o.scheme ?? 'auto')}<defs>` +
-    `<linearGradient id="${id}-g" x1="0" x2="1"><stop offset="0" style="stop-color:${top}" stop-opacity=".5"/><stop offset=".55" style="stop-color:${colour}" stop-opacity=".14"/><stop offset="1" style="stop-color:${colour}" stop-opacity="0"/></linearGradient>` +
-    `<linearGradient id="${id}-l" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".32"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>` +
-    `<radialGradient id="${id}-b" cx=".35" cy=".3"><stop offset="0" style="stop-color:${top}"/><stop offset="1" style="stop-color:${colour}"/></radialGradient>` +
-    (radius > 0 ? `<clipPath id="${id}-r"><rect width="${w}" height="${h + radius}" rx="${radius}"/></clipPath>` : '') +
-    `</defs>` +
-    (radius > 0 ? `<g clip-path="url(#${id}-r)">` : '') +
-    `<rect width="${w}" height="${h}" fill="url(#${id}-g)"/>${shimmer}` +
-    `<rect width="${w}" height="1" style="fill:var(--highlight)"/>` +
-    `<rect y="${h - 1}" width="${w}" height="1" style="fill:${colour}" opacity=".45"/>` +
-    lead +
-    `<text x="36" y="18" dominant-baseline="central" font-family="${FONT}" font-size="12.5" font-weight="650" style="fill:var(--text)">${title}</text>` +
-    (meta !== '' ? `<text x="${w - (o.done === true ? 34 : 10)}" y="18" dominant-baseline="central" text-anchor="end" font-family="${FONT}" font-size="10.5" style="fill:var(--mute)">${meta}</text>` : '') +
-    `${check}${radius > 0 ? '</g>' : ''}</svg>`
+    `${open(size, size, o.scheme ?? 'auto')}<g transform="scale(${scale})" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" ` +
+    `style="stroke:${TONE_VAR[o.tone ?? 'accent']}">${ICON_PATHS[name]}</g></svg>`
   )
 }
 
-/** The phases: done steps filled, the line traced up to the current one, which pulses; the rest hollow. */
+/**
+ * An option's letter in a soft disc: `chosen` fills it in ochre, `recommended` in sage, otherwise a pale
+ * pebble with the letter in the secondary colour.
+ */
+export function disc(letter: string, o: { state?: 'chosen' | 'recommended' | 'plain'; size?: number; scheme?: Scheme } = {}): string {
+  const size = o.size ?? 22
+  const c = size / 2
+  const state = o.state ?? 'plain'
+  const fill = state === 'chosen' ? 'var(--accent)' : state === 'recommended' ? 'var(--ok)' : 'var(--disc)'
+  const ink = state === 'plain' ? 'var(--mute)' : '#fff'
+  return (
+    `${open(size, size, o.scheme ?? 'auto')}<circle cx="${c}" cy="${c}" r="${c}" style="fill:${fill}"/>` +
+    `<text x="${c}" y="${c}" text-anchor="middle" dominant-baseline="central" font-family="${FONT}" font-size="${Math.round(size * 0.5)}" font-weight="600" style="fill:${ink}">${escapeXml(letter.slice(0, 2))}</text></svg>`
+  )
+}
+
+/**
+ * The phases as soft segments: done ones filled, the current one half-filled, the rest a pale track; each
+ * named underneath, the current one in the text colour.
+ */
 export function timeline(width: number, steps: string[], current: number, o: { scheme?: Scheme; id?: string } = {}): string {
   const w = Math.max(MIN_WIDTH, Math.round(width))
-  const h = 36
-  // Room for half of the first and last labels, so the edges never cut them.
-  const pad = Math.max(14, Math.ceil(((steps[0]?.length ?? 0) * 5.6) / 2) + 2, Math.ceil(((steps.at(-1)?.length ?? 0) * 5.6) / 2) + 2)
-  const span = steps.length > 1 ? (w - 2 * pad) / (steps.length - 1) : 0
-  const xs = steps.map((_, index) => (steps.length > 1 ? pad + index * span : w / 2))
-  const isAllDone = current >= steps.length
-  const at = isAllDone ? steps.length : Math.max(-1, current)
-  const reach = isAllDone ? (xs.at(-1) ?? pad) - pad : at >= 0 ? (xs[at] ?? pad) - pad : 0
-  const marks = steps
+  const h = 26
+  const gap = 4
+  const n = Math.max(1, steps.length)
+  const segment = (w - gap * (n - 1)) / n
+  const at = current >= steps.length ? steps.length : current
+  const parts = steps
     .map((step, index) => {
-      const x = (xs[index] ?? 0).toFixed(1)
+      const x = index * (segment + gap)
       const isDone = index < at
       const isCurrent = index === at
-      const mark = isCurrent
-        ? `<circle class="wave motion" cx="${x}" cy="12" r="5" style="fill:var(--accent2)"/><circle cx="${x}" cy="12" r="5" style="fill:var(--accent2)"/>`
-        : isDone
-          ? `<circle cx="${x}" cy="12" r="5" style="fill:var(--accent)"/>`
-          : `<circle cx="${x}" cy="12" r="4.5" fill="none" stroke-width="1.5" style="stroke:var(--mute)"/>`
-      const label = escapeXml(fitText(step, Math.max(30, span), 5.6))
-      return `${mark}<text x="${x}" y="31" text-anchor="middle" font-family="${FONT}" font-size="9.5" style="fill:${isCurrent ? 'var(--text)' : 'var(--mute)'}">${label}</text>`
+      const fill = isDone || isCurrent ? 'var(--accent)' : 'var(--track)'
+      const label = escapeXml(fitText(step, segment + gap, 5.8))
+      return (
+        `<rect x="${x.toFixed(1)}" width="${segment.toFixed(1)}" height="6" rx="3" style="fill:${fill}"${isCurrent ? ' opacity=".45"' : ''}/>` +
+        `<text x="${(x + segment / 2).toFixed(1)}" y="21" text-anchor="middle" font-family="${FONT}" font-size="10"${isCurrent ? ' font-weight="600"' : ''} style="fill:${isCurrent ? 'var(--text)' : 'var(--mute)'}">${label}</text>`
+      )
     })
     .join('')
-  return (
-    `${open(w, h, o.scheme ?? 'auto')}` +
-    `<line x1="${pad}" y1="12" x2="${w - pad}" y2="12" stroke-width="2" style="stroke:var(--track)"/>` +
-    (reach > 0
-      ? `<line class="draw" x1="${pad}" y1="12" x2="${(pad + reach).toFixed(1)}" y2="12" stroke-width="2" stroke-dasharray="${reach.toFixed(1)}" stroke-dashoffset="0" style="stroke:var(--accent);--from:${reach.toFixed(1)}"/>`
-      : '') +
-    `${marks}</svg>`
-  )
+  return `${open(w, h, o.scheme ?? 'auto')}${parts}</svg>`
 }
 
 /**
- * Rounded chips, each with a small dot of its tone, wrapping onto a new row past `maxWidth`; measured, so the
- * caller sizes the Svg from `width` and `height`. A `hint` becomes the chip's tooltip where the surface shows one.
+ * Soft chips, each a pastel of its tone with its label in that tone, wrapping onto a new row past `maxWidth`;
+ * measured, so the caller sizes the Svg from `width` and `height`. A `hint` becomes the chip's tooltip.
  */
 export function pills(
   items: { label: string; tone: Tone; hint?: string }[],
@@ -302,41 +318,23 @@ export function pills(
   let y = 0
   let width = 1
   const chips = items.map(item => {
-    const w = Math.min(maxWidth, Math.round(item.label.length * 6.4 + 34))
+    const w = Math.min(maxWidth, Math.round(item.label.length * 6.2 + 20))
     if (x > 0 && x + w > maxWidth) {
       x = 0
       y += row + gap
     }
     const colour = TONE_VAR[item.tone]
-    const label = escapeXml(fitText(item.label, w - 30, 6.4))
+    const label = escapeXml(fitText(item.label, w - 18, 6.2))
     const chip =
       `<g>${item.hint !== undefined ? `<title>${escapeXml(item.hint)}</title>` : ''}` +
-      `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${row - 1}" rx="${(row - 1) / 2}" style="fill:${colour};stroke:${colour}" fill-opacity=".12" stroke-opacity=".5"/>` +
-      `<circle cx="${x + 12}" cy="${y + row / 2}" r="3.5" style="fill:${colour}"/>` +
-      `<text x="${x + 21}" y="${y + row / 2}" dominant-baseline="central" font-family="${FONT}" font-size="11" font-weight="600" style="fill:var(--text)">${label}</text></g>`
+      `<rect x="${x}" y="${y}" width="${w}" height="${row}" rx="${row / 2}" style="fill:${colour}" fill-opacity=".14"/>` +
+      `<text x="${x + w / 2}" y="${y + row / 2}" text-anchor="middle" dominant-baseline="central" font-family="${FONT}" font-size="11" font-weight="500" style="fill:${colour}">${label}</text></g>`
     x += w + gap
     width = Math.max(width, x - gap)
     return chip
   })
   const height = y + row
   return { source: `${open(width, height, o.scheme ?? 'auto')}${chips.join('')}</svg>`, width, height }
-}
-
-/**
- * A raised pill to lay behind a row: one flat fill, a hairline rim, a soft shadow; nothing more. Centred in its
- * drawing with a 3 px margin all round (room for the shadow). `radius` matches the container it sits in:
- * a pill inside a rounded box takes that box's radius less the gap between them, so the corners run parallel.
- */
-export function pill(width: number, height: number, o: { radius?: number; scheme?: Scheme } = {}): string {
-  const w = Math.max(40, Math.round(width))
-  const h = Math.max(16, Math.round(height))
-  const margin = 3
-  const r = Math.min(o.radius ?? (h - 2 * margin) / 2, (h - 2 * margin) / 2)
-  return (
-    `${open(w, h, o.scheme ?? 'auto')}<defs>` +
-    `<filter id="s-pill-s" x="-5%" y="-40%" width="110%" height="200%"><feDropShadow dx="0" dy="1" stdDeviation="1.5" style="flood-color:var(--shadow)" flood-opacity=".55"/></filter></defs>` +
-    `<rect x="${margin}" y="${margin}" width="${w - 2 * margin}" height="${h - 2 * margin}" rx="${r}" style="fill:var(--pill1);stroke:var(--accent)" stroke-opacity=".22" filter="url(#s-pill-s)"/></svg>`
-  )
 }
 
 /** The window's backdrop: the base colour, three blurred halos drifting slowly, a light grain. */

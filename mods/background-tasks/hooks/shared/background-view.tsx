@@ -9,7 +9,7 @@ import type { EngineInterface, RenderChildren, RenderInput } from 'claude-code'
 import type { SessionAgent } from './collect-workflows'
 import { formatAgo, formatDuration, formatTokens, plural, truncate } from './format'
 import type { Service } from './services'
-import { NATIVE, bar as barSvg, dot } from './sienne'
+import { NATIVE, bar as barSvg, dot, surface } from './sienne'
 import { type PhaseRow, type RunAgent, type WorkflowRun, agentFiguresLine, phaseRows, runName } from './workflows'
 
 /** The project's workflow runs and this session's agents, gathered every 30 seconds. */
@@ -30,8 +30,8 @@ function sectionTitle(els: Elements, key: string, title: string, meta: string | 
   const { Box, Text } = els
   return (
     <Box key={key} flexDirection="row" gap="sm" alignItems="center">
-      <Text size="caption" weight="semibold" dimColor>
-        {title.toUpperCase()}
+      <Text size="footnote" weight="semibold">
+        {title}
       </Text>
       {meta !== null && (
         <Text size="caption" dimColor>
@@ -160,9 +160,9 @@ function liveRunCard(els: Elements, run: WorkflowRun, width: number, now: number
   ]
     .filter((part): part is string => part !== null)
     .join(' · ')
-  const bar = rows.length > 0 ? barSvg(width - 28, (done + 0.5) / rows.length, { running: isRunning, id: `run-${run.id}` }) : null
+  const bar = rows.length > 0 ? barSvg(width - 28, (done + 0.5) / rows.length, { id: `run-${run.id}` }) : null
   return (
-    <Box key={`run-${run.id}`} flexDirection="column" gap="sm" borderStyle="round" borderColor={NATIVE.accentBorder} backgroundColor={isRunning ? NATIVE.accentFill : undefined} paddingX="md" paddingY="sm">
+    <Box key={`run-${run.id}`} flexDirection="column" gap="sm" {...surface(isRunning ? 'ochre' : 'stone')} paddingX="md" paddingY="md">
       <Box flexDirection="row" gap="sm" alignItems="center">
         <Box flexGrow={1} flexShrink={1} minWidth={0}>
           <Text weight="semibold" wrap="truncate-end">
@@ -178,7 +178,7 @@ function liveRunCard(els: Elements, run: WorkflowRun, width: number, now: number
           {truncate(run.description, 200)}
         </Text>
       )}
-      {bar !== null && <Svg key={`run-${run.id}-bar`} alt={`${done} phases sur ${rows.length}`} source={bar} width={Math.max(40, Math.round(width - 28))} height={10} isInteractive />}
+      {bar !== null && <Svg key={`run-${run.id}-bar`} alt={`${done} phases sur ${rows.length}`} source={bar} width={Math.max(40, Math.round(width - 28))} height={5} />}
       {rows.map(row => phaseLine(els, run, row, now))}
       {rows.length === 0 && (run.agents ?? []).slice(-4).map(agent => agentRow(els, `run-${run.id}-agent-${agent.id}`, agent, now))}
       {run.sessionTitle !== undefined && (
@@ -267,6 +267,85 @@ export function renderPane($: EngineInterface, e: RenderInput<'Pane', 'desktop' 
           {sectionTitle(els, 'finished-title', 'Terminés récemment', null)}
           {doneRuns.map(run => finishedRunRow(els, run, now))}
         </Box>
+      )}
+    </Box>
+  )
+}
+
+/**
+ * The background tasks in a few lines, for the cockpit's section: a service with its port, a workflow with its
+ * phase, its agents and its time and a soft bar under it, an agent of this session; nothing more.
+ */
+export function renderCompact($: EngineInterface, e: RenderInput<'Pane', 'desktop' | 'vscode'>, data: PaneData) {
+  const els = $.ui.resolve(e)
+  const { Box, Text, Svg } = els
+  const { snapshot, services, now } = data
+  const width = Math.max(240, Math.floor(e.props.bodyColumns * PIXELS_PER_COLUMN) - 4)
+  const runs = snapshot?.runs ?? []
+  const liveRuns = runs.filter(run => run.status === 'running' || run.status === 'silent')
+  const doneRuns = runs.filter(run => run.status === 'completed' || run.status === 'failed').slice(0, 2)
+  const agents = snapshot?.agents ?? []
+  const line = (key: string, isRunning: boolean, name: string, middle: RenderChildren, right: string, isDim = false) => (
+    <Box key={key} flexDirection="row" gap="sm" alignItems="center">
+      <Svg key={`${key}-dot`} alt={isRunning ? 'en cours' : 'actif'} source={dot(isRunning ? 'running' : 'ok', { pulse: isRunning })} width={12} height={12} isInteractive={isRunning} />
+      <Box flexGrow={1} flexShrink={1} minWidth={0}>
+        <Text wrap="truncate-end" dimColor={isDim}>
+          {name}
+        </Text>
+      </Box>
+      {middle}
+      <Text size="caption" dimColor tabular>
+        {right}
+      </Text>
+    </Box>
+  )
+  // Nothing running: the section's own meta says so (« rien ne tourne »), no line repeats it.
+  if (services.length === 0 && liveRuns.length === 0 && agents.length === 0 && doneRuns.length === 0) return null
+  return (
+    <Box flexDirection="column" gap="xs">
+      {services.map(service =>
+        line(
+          `service-${service.id}`,
+          false,
+          truncate(service.label, 60),
+          service.port !== null ? (
+            <Text key={`service-${service.id}-port`} mono size="footnote" tabular>
+              :{service.port}
+            </Text>
+          ) : null,
+          'service',
+        ),
+      )}
+      {liveRuns.map(run => {
+        const rows = phaseRows(run)
+        const done = rows.filter(row => row.state === 'done' || row.state === 'skipped').length
+        const facts = [run.phase, run.agentsStarted > 0 ? plural(run.agentsStarted, 'agent', 'agents') : null].filter((part): part is string => part !== undefined && part !== null).join(' · ')
+        return (
+          <Box key={`run-${run.id}`} flexDirection="column" gap="xs">
+            {line(
+              `run-${run.id}-line`,
+              true,
+              runName(run),
+              facts !== '' ? (
+                <Text key={`run-${run.id}-facts`} size="caption" dimColor wrap="truncate-end">
+                  {facts}
+                </Text>
+              ) : null,
+              run.startedAt !== undefined ? formatDuration(now - run.startedAt) : '',
+            )}
+            {rows.length > 0 && (
+              <Box paddingLeft={2}>
+                <Svg key={`run-${run.id}-bar`} alt={`${done} phases sur ${rows.length}`} source={barSvg(width - 24, (done + 0.5) / rows.length, { id: `run-${run.id}` })} width={Math.max(40, Math.round(width - 24))} height={5} />
+              </Box>
+            )}
+          </Box>
+        )
+      })}
+      {agents.map(agent =>
+        line(`agent-${agent.id}`, true, agent.description !== '' ? agent.description : agent.type, null, agent.startedAt !== undefined ? formatDuration(now - agent.startedAt) : 'en cours'),
+      )}
+      {doneRuns.map(run =>
+        line(`done-${run.id}`, false, runName(run), null, run.finishedAt !== undefined ? formatAgo(now - run.finishedAt) : run.status === 'failed' ? 'échoué' : 'terminé', true),
       )}
     </Box>
   )

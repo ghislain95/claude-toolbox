@@ -11,7 +11,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { BackgroundItem, HudFigures } from '../types'
 import { type Tone as HudTone, backgroundLabel, bandLine, fitBand, hudItems } from './hud'
-import { NATIVE, type Tone, backdrop, dot, pill, ring } from './shared/sienne'
+import { GALET, NATIVE, type Tone, backdrop, chip, dot, ring, surface } from './shared/sienne'
 import { KIND_LABEL, isInFlight, portOf, taskKind, taskLabel } from './shared/tasks'
 
 const figures = atom({ plugin: 'session-hud', key: 'figures' } as const, null)
@@ -62,9 +62,12 @@ async function refresh($: EngineInterface): Promise<void> {
   }
 }
 
-/** The backdrop is on unless the person turned it off with /fond; the choice is kept across sessions. */
+/**
+ * The backdrop is off unless the person turned it on with /fond (the Galet look draws on the app's own ground);
+ * the choice is kept across sessions.
+ */
 async function isBackdropOn($: EngineInterface): Promise<boolean> {
-  return ((await $.store.get('backdrop').catch(() => undefined)) ?? 'on') !== 'off'
+  return ((await $.store.get('backdrop').catch(() => undefined)) ?? 'off') === 'on'
 }
 
 /**
@@ -73,7 +76,7 @@ async function isBackdropOn($: EngineInterface): Promise<boolean> {
  * so it only follows the person's own /fond, never a start or a reload.
  */
 async function applyBackdrop($: EngineInterface, isOn: boolean): Promise<boolean> {
-  const result = await (isOn ? $.theme.set({ backdrop: { id: BACKDROP_ID } }) : $.theme.clear()).catch(() => null)
+  const result = await (isOn ? $.theme.set({ backdrop: { scene: BACKDROP_ID } }) : $.theme.clear()).catch(() => null)
   return result !== null && result.isDrawn === true
 }
 
@@ -90,10 +93,17 @@ export const register: Register = on => {
   pendingErrors = 0
   backgroundTasks = undefined
 
+  // A change of theme redraws: a few native colours (tiles, chips) differ between light and dark.
+  on('config.set', async ($, e, next) => {
+    const result = await next(e)
+    if (e.key === 'theme') $.ui.invalidate('ui.render')
+    return result
+  })
+
   on('session.start', async ($, e, next) => {
     void refresh($)
     $.clock.every(REFRESH_MS, () => void refresh($))
-    await $.command.register({ name: 'fond', description: 'Allume ou éteint le fond animé Terre de Sienne' }).catch(() => undefined)
+    await $.command.register({ name: 'fond', description: 'Allume ou éteint le fond animé (éteint par défaut)' }).catch(() => undefined)
     if (await isBackdropOn($)) await applyBackdrop($, true)
     return next(e)
   })
@@ -108,7 +118,9 @@ export const register: Register = on => {
 
   // The window's backdrop: drawn for this mod's own only, another plugin's is left to it.
   on('ui.render', { component: 'Backdrop' }, async ($, e, next) => {
-    if (e.props.plugin !== 'session-hud' || e.props.id !== BACKDROP_ID) return next(e)
+    if (e.props.plugin !== 'session-hud' || e.props.scene !== BACKDROP_ID) return next(e)
+    // Turned off since it was set (a theme stands until cleared): nothing of ours is drawn.
+    if (!(await isBackdropOn($))) return next(e)
     const { Svg } = $.ui.resolve(e) as unknown as { Svg: (props: { source: string; alt: string; width: number; height: number }) => never }
     // Sized past the window: the drawing covers it (slice) whatever the window's shape.
     const width = Math.max(2400, Math.round((e.viewport?.columns ?? 0) * 10))
@@ -164,16 +176,16 @@ export const register: Register = on => {
     }
     const { Box, Text, Button, Svg } = $.ui.resolve(e)
     // No item ever wraps: short of room, the band drops the labels, then the model (about 8.8 px a column).
-    const fitted = fitBand(items, e.props.bodyColumns * 8.8, tasks !== null ? `⚙ ${tasks} ▴` : '')
+    const fitted = fitBand(items, e.props.bodyColumns * 8.8, tasks !== null ? `${tasks} ▴` : '')
     const row = (
-      <Box key="row" flexDirection="row" alignItems="center" gap="md" paddingX="md" paddingY="xs">
+      <Box key="row" flexDirection="row" alignItems="center" gap="md" paddingX="md" paddingY={0}>
         <Svg key="working" alt={e.props.isWorking ? 'Claude travaille' : 'au repos'} source={dot(e.props.isWorking ? 'running' : 'muted', { pulse: e.props.isWorking })} width={12} height={12} isInteractive />
         {fitted.items.map(item => (
           <Box key={`item-${item.key}`} flexDirection="row" alignItems="center" gap="xs" flexShrink={0}>
             {item.gauge !== undefined && (
-              <Svg key={`gauge-${item.key}`} alt={item.hint ?? `${item.value} ${item.label}`} source={ring(item.gauge, { tone: DRAWN_TONE[item.tone], id: `gauge-${item.key}` })} width={16} height={16} isInteractive />
+              <Svg key={`gauge-${item.key}`} alt={item.hint ?? `${item.value} ${item.label}`} source={ring(item.gauge, { size: 14, tone: DRAWN_TONE[item.tone], id: `gauge-${item.key}` })} width={14} height={14} isInteractive />
             )}
-            <Text weight="semibold" tabular wrap="truncate-end" color={TEXT_COLOUR[item.tone]} dimColor={item.tone === 'muted'}>
+            <Text size="footnote" weight="semibold" tabular wrap="truncate-end" color={TEXT_COLOUR[item.tone]} dimColor={item.tone === 'muted'}>
               {item.value}
             </Text>
             {fitted.showLabels && item.label !== '' && (
@@ -185,28 +197,24 @@ export const register: Register = on => {
         ))}
         <Box flexGrow={1} />
         {tasks !== null && (
-          <Button key="background" plain label={`⚙ ${tasks} ${isOpen ? '▾' : '▴'}`} onPress={() => void update($, isListOpen, value => !value)} />
+          <Box flexShrink={0} {...chip(GALET.deep.ochre, { pressable: true })}>
+            <Button key="background" plain label={`${tasks} ${isOpen ? '▾' : '▴'}`} onPress={() => void update($, isListOpen, value => !value)} />
+          </Box>
         )}
       </Box>
     )
-    // The pill: a raised SVG in the flow gives the band its height; the row is laid over it (an absolute
-    // Box paints over what comes before it). Measured on the desktop: the band lays out at about 8.8 CSS pixels
-    // per column, inside a grey box of radius 10 with a 10 px gap; the drawing keeps 3 px round the pill for its
-    // shadow, so it is drawn 8 px wider than the columns and the pill takes radius 6, parallel to the box's corners.
-    const pillWidth = Math.max(240, Math.round(e.props.bodyColumns * 8.8) + 4)
+    // The band: the row alone, on the app's own frame (which the app draws round any band and no mod can take
+    // away), so only one surface shows.
     const banded = (
       <Box key="band" flexDirection="column">
-        <Svg key="pill-svg" alt="bande de session" source={pill(pillWidth, 40, { radius: 6 })} width={pillWidth} height={40} />
-        <Box key="over" position="absolute" top={0} left={0} right={0} bottom={0} flexDirection="column" justifyContent="center">
-          {row}
-        </Box>
+        {row}
       </Box>
     )
     if (!isOpen) return banded
     // The list unfolds above the band: one line per task, then the way to the whole pane.
     return (
       <Box flexDirection="column" gap="xs">
-        <Box key="list" flexDirection="column" gap="xs" borderStyle="round" borderColor={NATIVE.accentBorder} backgroundColor={NATIVE.accentFill} paddingX="md" paddingY="sm">
+        <Box key="list" flexDirection="column" gap="xs" {...surface('ochre')} paddingX="md" paddingY="sm">
           {shown.tasks.map(task => (
             <Box key={`task-${task.id}`} flexDirection="row" alignItems="center" gap="sm">
               <Svg key={`task-${task.id}-dot`} alt="en cours" source={dot('ok', { pulse: true })} width={12} height={12} isInteractive />
