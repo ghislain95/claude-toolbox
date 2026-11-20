@@ -1,6 +1,6 @@
 {
   "name": "openspec-cockpit",
-  "version": "0.15.0",
+  "version": "0.15.1",
   "description": "OpenSpec cockpit: next-action dashboard pane, live workflow runs, task-group progress, decision register, cards for questions/reports/commits/QA in the transcript, display contract, gate alerts",
   "author": {
     "name": "ghislain95"
