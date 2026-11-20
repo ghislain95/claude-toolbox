@@ -92,7 +92,7 @@ export function renderTextPane($: EngineInterface, e: RenderInput<'Pane'>, data:
       <Text> </Text>
       <Text bold>Passations</Text>
       {shot.recentHandoffs.map(handoff => (
-        <Button key={`handoff-${handoff.file}`} plain onPress={() => void fillPrompt($, resumePrompt(handoff.file))}>
+        <Button key={`handoff-${handoff.file}`} plain onPress={() => void fillPrompt($, resumePrompt(handoff))}>
           <Text dimColor>{formatClock(handoff.writtenAt, offset)}</Text> {truncate(handoff.title, width - 14)}
         </Button>
       ))}
@@ -337,10 +337,10 @@ export function renderRichPane($: EngineInterface, e: RenderInput<'Pane', 'deskt
               />
             )}
             <Box flexDirection="row" gap="sm">
-              <Button key="resume-pane" variant="primary" label="Reprendre" onPress={() => void fillPrompt($, resumePrompt(handoff.file))} />
+              <Button key="resume-pane" variant="primary" label="Reprendre" onPress={() => void fillPrompt($, resumePrompt(handoff))} />
             </Box>
             {shot.recentHandoffs.slice(1, 4).map(older => (
-              <Button key={`handoff-${older.file}`} plain onPress={() => void fillPrompt($, resumePrompt(older.file))}>
+              <Button key={`handoff-${older.file}`} plain onPress={() => void fillPrompt($, resumePrompt(older))}>
                 <Text dimColor>{formatClock(older.writtenAt, offset)}</Text> <Text dimColor>{truncate(older.title, 70)}</Text>
               </Button>
             ))}

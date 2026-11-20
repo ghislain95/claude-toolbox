@@ -17,6 +17,8 @@ export type GraphFreshness = {
 }
 
 export type HandoffSummary = {
+  /** Folder of the file, relative to the project root: `.claude/handoff`, or `.claude/passation` for files written before the rename. */
+  dir: string
   file: string
   title: string
   writtenAt: number

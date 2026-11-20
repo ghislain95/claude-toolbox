@@ -114,7 +114,7 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const root = await $.session.root()
     const isOpenSpecProject =
-      (await $.fs.exists(`${root}/openspec`)) || (await $.fs.exists(`${root}/.claude/passation`))
+      (await $.fs.exists(`${root}/openspec`)) || (await $.fs.exists(`${root}/.claude/handoff`)) || (await $.fs.exists(`${root}/.claude/passation`))
     if (!isOpenSpecProject) return next(e)
 
     const [home, git, offset] = await Promise.all([
@@ -179,7 +179,7 @@ export const register: Register = on => {
   on('tool.call', { tool: /^mcp__openspec-cockpit__status$/ }, async $ => {
     await refresh($)
     const shot = await read($, snapshot)
-    if (shot === null || context === undefined) return { result: 'No cockpit data: this project has neither openspec/ nor .claude/passation/.' }
+    if (shot === null || context === undefined) return { result: 'No cockpit data: this project has neither openspec/ nor a handoff folder.' }
     const now = await $.clock.now()
     return { result: summaryMarkdown({ snapshot: shot, now, offsetMinutes: context.offsetMinutes, hasReview: await reviewSeen($) }) }
   }).catch(($, e, next) => (next.called ? next(e) : { deny: 'openspec-cockpit: the status could not be read.' }))
@@ -243,7 +243,7 @@ export const register: Register = on => {
   on('command.run', { command: 'ou-en-suis-je' }, async $ => {
     await refresh($)
     const shot = await read($, snapshot)
-    if (shot === null || context === undefined) return { text: 'Cockpit : aucune donnée (projet sans openspec/ ni .claude/passation/).' }
+    if (shot === null || context === undefined) return { text: 'Cockpit : aucune donnée (projet sans openspec/ ni dossier de handoff).' }
     const now = await $.clock.now()
     return {
       text: summaryMarkdown({

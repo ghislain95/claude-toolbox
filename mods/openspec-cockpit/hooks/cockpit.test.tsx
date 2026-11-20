@@ -319,6 +319,25 @@ test('on desktop the cockpit opens on a large ring and the phase timeline, then 
   expect(seen.fills.at(-1)).toContain('.claude/passation/2026-10-15-1740-s3.md')
 })
 
+test('handoffs are read from .claude/handoff and the older .claude/passation, newest first', async ($, on) => {
+  const tree = projectTree()
+  delete tree['/repo/.claude/passation/2026-10-17-1114-s4.md']
+  tree['/repo/.claude/handoff'] = dir(HANDOFF_AT)
+  tree['/repo/.claude/handoff/2026-10-17-1114-s4.md'] = file(
+    '# Handoff — S4 frontend (2026-10-17 11:14)\n\n## Next step\n1. Read tasks 13 to 20.\n',
+    HANDOFF_AT,
+  )
+  const seen = world(on, '/repo', tree)
+  await start($)
+  await $.command.run({ command: 'ou-en-suis-je', args: '', origin: ORIGIN, presentation: PRESENTATION })
+
+  const ui = await $.ui.mount({ plugin: 'openspec-cockpit', surface: 'desktop', ...PANE })
+  await ui.press({ key: 'resume-pane' })
+  expect(seen.fills.at(-1)).toContain('.claude/handoff/2026-10-17-1114-s4.md')
+  await ui.press({ key: 'handoff-2026-10-15-1740-s3.md' })
+  expect(seen.fills.at(-1)).toContain('.claude/passation/2026-10-15-1740-s3.md')
+})
+
 test('group progress uses growing bars, the current group running, and no button', async ($, on) => {
   const tree = projectTree()
   tree['/repo/openspec/changes/offline-catalog/tasks.md'] = file('## 1. Infra\n- [x] 1.1\n- [x] 1.2\n\n## 2. Frontend\n- [x] 2.1\n- [ ] 2.2\n- [ ] 2.3\n', NOW - 60 * MINUTE)

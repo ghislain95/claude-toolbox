@@ -250,6 +250,9 @@ describe('message shapes', () => {
     expect(severityCounts('rien')).toBe(null)
     expect(qaChecklist('Avant.\n## QA visuelle\n- ouvrir /sources\n- [ ] voir la date\n## Suite\n- pas QA')).toEqual(['ouvrir /sources', 'voir la date'])
     expect(handoffPhrase('Colle : `Lis .claude/passation/2026-10-17-x.md et reprends.`')).toBe('Lis .claude/passation/2026-10-17-x.md et reprends.')
+    expect(handoffPhrase('Paste: `Read .claude/handoff/2026-11-20-0930-x.md and pick up exactly where we left off.`')).toBe(
+      'Read .claude/handoff/2026-11-20-0930-x.md and pick up exactly where we left off.',
+    )
   })
 })
 

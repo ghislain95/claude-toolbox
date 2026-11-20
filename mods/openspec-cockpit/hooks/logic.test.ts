@@ -56,6 +56,12 @@ describe('handoffs', () => {
     ])
   })
 
+  test('an English handoff gives its title and next steps', () => {
+    const english = '# Handoff — S4 frontend (2026-10-17 11:14)\n\n## Next step\n1. Read tasks 13 to 20.\n2. Restate, wait for GO.\n\n## Suggested tools\n- x\n'
+    expect(handoffTitle(english, 'x.md')).toBe('S4 frontend')
+    expect(handoffNextSteps(english)).toEqual(['Read tasks 13 to 20.', 'Restate, wait for GO.'])
+  })
+
   test('a handoff without the section has no next steps', () => {
     expect(handoffNextSteps('# Passation — x\n\n## Objectif\n1. nope\n')).toEqual([])
   })

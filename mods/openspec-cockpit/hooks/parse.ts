@@ -69,7 +69,7 @@ function sectionLines(markdown: string, heading: RegExp): string[] {
 export function handoffDecisions(markdown: string): Decision[] {
   const decisions: Decision[] = []
   let parent: Decision['status'] | undefined
-  sectionLines(markdown, /Décisions/i).forEach((line, index) => {
+  sectionLines(markdown, /Décisions|Decisions/i).forEach((line, index) => {
     const item = /^(\s*)[-*]\s+(.*)$/.exec(line)
     if (item === null) return
     const isNested = (item[1] ?? '').length > 0
