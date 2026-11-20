@@ -1,0 +1,12 @@
+{
+  "name": "wayfinder",
+  "version": "0.1.0",
+  "description": "/wayfinder:wayfinder plans an effort too big for one session as a shared map of decision tickets (GitHub issues with native sub-issues and blocking, or docs/wayfinder/ without a GitHub remote) and resolves them one per session until the way is clear. In an sdd-core project the map ends in a list of changes ready for /opsx:new. Depends on grilling.",
+  "author": {
+    "name": "ghislain95"
+  },
+  "license": "MIT",
+  "dependencies": [
+    "grilling"
+  ]
+}

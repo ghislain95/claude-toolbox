@@ -79,11 +79,12 @@ merge (human)           → the agent stops at the commit on the branch
   - `/sdd-core:improve-codebase-architecture` — at post-archive, when five or more changes were archived (`openspec/changes/archive/`, date prefix) after the `Last architecture audit:` date of `docs/ROADMAP.md`. Never in the middle of a change.
   - `/sdd-core:retro` — in the final report, when the review harness needed two fix rounds or more, escalated, or the session hit the same failure twice.
   - `/local-qa:qa-prepare <id>` — when the intent gate is open (above).
+  - `/wayfinder:wayfinder <epic or request>` — before `/opsx:new`, when a roadmap epic or a request clearly spans more than one OpenSpec change (several domains or contracts, a migration in steps, decisions that would each reshape the others): it charts a map of decision tickets, one per session, and ends in a list of changes ready for `/opsx:new`, each with its settled decisions, which framing then takes as settled. It needs the `wayfinder` plugin (`claude plugin install wayfinder@claude-toolbox`); say so if it is missing. Never mid-change.
 - **Skills by phase** — the project's instructions win over a generic process skill (superpowers' own rule):
 
   | Phase | Use | Never in its place |
   |---|---|---|
-  | Framing | `grilling`, `sdd-core:domain-modeling`, `/opsx:new` | `superpowers:brainstorming` (its design doc and plan would compete with the OpenSpec artifacts) |
+  | Framing | `grilling`, `sdd-core:domain-modeling`, `/opsx:new`; before it, `/wayfinder:wayfinder` for an effort bigger than one change | `superpowers:brainstorming` (its design doc and plan would compete with the OpenSpec artifacts) |
   | Design | `/opsx:ff`, `architect` with `sdd-core:codebase-design` on a structural change | `superpowers:writing-plans` |
   | Implementation | `/opsx:apply` with the routing table (§8); dev agents invoke `superpowers:test-driven-development` and `superpowers:systematic-debugging` | `superpowers:executing-plans`, `superpowers:subagent-driven-development` |
   | Review | `/sdd-core:review-harness` | `superpowers:requesting-code-review` |
@@ -232,6 +233,7 @@ Details: [`docs/GRAPHIFY.md`](docs/GRAPHIFY.md).
 | Request | Tool |
 |---|---|
 | Stress-test a plan or a design before building, framing interview | `grilling` (auto) · `/grilling:grill-me <plan>` by hand |
+| An epic or a request bigger than one change, before framing any of it | `/wayfinder:wayfinder <epic or request>` (proposed by the agent, §3; plugin `wayfinder`) → changes ready for `/opsx:new` |
 | Long session, change of topic, polluted context, before a heavy phase | `/handoff:handoff [next goal]` (proposed by the agent, §3) then `/clear` or a new session (preferred over `/compact`) |
 | Fuzzy or conflicting term during framing | `sdd-core:domain-modeling` (auto) → [`docs/GLOSSARY.md`](docs/GLOSSARY.md) |
 | Design of a structural change: seams, deep modules, design it twice | `sdd-core:codebase-design` (auto, `architect`) |

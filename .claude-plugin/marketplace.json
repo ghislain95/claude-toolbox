@@ -32,6 +32,12 @@
       "category": "skill"
     },
     {
+      "name": "wayfinder",
+      "source": "./plugins/wayfinder",
+      "description": "/wayfinder:wayfinder: plan an effort bigger than one session as a map of decision tickets (GitHub issues or docs/wayfinder/), resolved one per session; in an sdd-core project it ends in a list of changes ready for /opsx:new",
+      "category": "skill"
+    },
+    {
       "name": "local-qa",
       "source": "./plugins/local-qa",
       "description": "/local-qa:qa-prepare: local QA environment for a change on a machine shared by parallel projects and agents (reuses what is compatible, starts the rest on free ports, stops only what it started), and the owner's QA brief",

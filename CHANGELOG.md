@@ -5,6 +5,31 @@ users when the `version` in the plugin's `.claude-plugin/plugin.json` changes (s
 [`MAINTAINING.md`](MAINTAINING.md)). After updating the plugin, run `/sdd-core:sdd-init --refresh` in
 each installed project to bring its generated files up to date.
 
+## 0.6.0 — 2026-11-20
+
+Plugins: `sdd-core` 0.6.0, `wayfinder` 0.1.0 (new, optional). Projects need
+`/sdd-core:sdd-init --refresh` for the agent to propose `wayfinder`: `CLAUDE.md` and
+`AGENT_TOOLBOX.md` change.
+
+### Added
+- **`wayfinder`**, an à-la-carte plugin adapted from `mattpocock/skills` (MIT):
+  `/wayfinder:wayfinder` charts an effort too big for one session as a map of decision tickets
+  (grilling, research, prototype, task) with a destination, the decisions so far, the fog not yet
+  specified and what is out of scope, then resolves one ticket per session. The map lives on GitHub
+  issues when the repo has a GitHub remote (labels `wayfinder:*`, `gh`'s native sub-issues and
+  blocking), otherwise under `docs/wayfinder/`; no `setup-matt-pocock-skills`. Grilling tickets
+  invoke `grilling:grilling` (and `sdd-core:domain-modeling` when present), research tickets go to a
+  sub-agent with web access, prototypes are throwaway artifacts or branches never merged. In an
+  `sdd-core` project the destination is a list of changes ready for `/opsx:new`, each with its
+  settled decisions; the map never writes OpenSpec artifacts and ends by proposing the `/opsx:new`
+  runs. Depends on `grilling`; not a dependency of `sdd-core`.
+
+### Changed
+- The generated `CLAUDE.md` proposes `/wayfinder:wayfinder` before `/opsx:new` when a roadmap epic or
+  a request clearly spans more than one change (§3, "What the agent proposes"; §11), and says how to
+  install it when it is missing. `AGENT_TOOLBOX.md` adopts it.
+- `CATALOG.md` documents `wayfinder` (no longer "Coming next").
+
 ## 0.5.0 — 2026-11-20
 
 Plugins: `sdd-core` 0.5.0, `handoff` 0.2.0, `grilling` 0.1.0 (new); mods `openspec-cockpit` 0.15.1,
