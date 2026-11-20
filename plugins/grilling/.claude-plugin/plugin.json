@@ -1,0 +1,9 @@
+{
+  "name": "grilling",
+  "version": "0.1.0",
+  "description": "Stress-test a plan or design before building it: the agent interviews you in rounds over a tree of decisions, with its recommended answer for each question, and looks up every fact itself. /grilling:grill-me to start one by hand. Works in any project; sdd-core uses it to frame OpenSpec changes.",
+  "author": {
+    "name": "ghislain95"
+  },
+  "license": "MIT"
+}

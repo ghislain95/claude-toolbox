@@ -1,6 +1,6 @@
 # Codebase Design — vocabulary
 
-> Reference file for `improve-codebase-architecture` (from mattpocock/skills `codebase-design`, MIT).
+> Reference file of `sdd-core:codebase-design`, also used by `improve-codebase-architecture` (from mattpocock/skills `codebase-design`, MIT).
 > Project note: if the codebase uses hexagonal ports for some integrations, **port** = the
 > interface at a seam and **adapter** keeps its usual meaning (ex. `FakePaymentAdapter`) — the two
 > vocabularies agree. "Module" here is the architecture term, not necessarily a root package or a

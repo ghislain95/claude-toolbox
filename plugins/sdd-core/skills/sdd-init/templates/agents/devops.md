@@ -1,7 +1,7 @@
 ---
 name: devops
 description: USE WHEN changing the dev or deployment infrastructure: containers (Dockerfile, compose), IaC, deployment scripts, CI workflows, production configs, secrets management. DO NOT USE for application logic.
-tools: [Read, Edit, Write, Grep, Glob, Bash]
+tools: [Read, Edit, Write, Grep, Glob, Bash, Skill]
 model: {{AGENT_MODEL}}
 ---
 <!-- sdd:note: generate only if the devops option is on (Docker/compose, IaC or deployment scripts present); remove this comment -->
@@ -28,6 +28,8 @@ Keep the dev infrastructure reliable and prepare deployment **without compromisi
 <!-- sdd:fill: project-specific infra rules observed (dedicated network, mandatory TLS, service accounts…); remove this line if none -->
 
 ## Workflow
+0. A failing pipeline, container or deployment: invoke the Skill tool with
+   `superpowers:systematic-debugging` before changing anything.
 1. Read the current config concerned.
 2. Propose a **minimal** patch.
 3. Check locally <!-- sdd:fill: verification command(s) for the infra present (e.g. `docker compose config`, `terraform validate`, workflow lint) --> — stop on error.

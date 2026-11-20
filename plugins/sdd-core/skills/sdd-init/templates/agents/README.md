@@ -11,7 +11,7 @@ agent fits or the task is trivial (quick read, factual question).
 
 | The user asks… | Agent |
 |---|---|
-| "I want feature X", "we should be able to Y", fuzzy business need, prioritisation, user story, proposal | `product-owner` |
+| "I want feature X", "we should be able to Y", fuzzy business need, prioritisation, user story, proposal | `grilling` in the main session (a sub-agent cannot interview), then `product-owner` with the settled decisions |
 | "how should we do X", cross-cutting choice<!-- sdd:if multi-module -->, impact on > 1 module<!-- sdd:endif -->, new external contract, spec deltas, design.md, ADR, adversarial pass | `architect` |
 <!-- sdd:each module -->
 | implementation in `{{MODULE_PATH}}` ({{MODULE_STACK}}) | `{{MODULE_NAME}}-dev` |
@@ -30,7 +30,7 @@ agent fits or the task is trivial (quick read, factual question).
 ### Routing rules
 - Several agents fit → the one that **maximises specialisation**<!-- sdd:if multi-module --> (the module's agent rather than `full-stack-dev` when the task touches a single module)<!-- sdd:endif -->.
 - Ambiguous request → **at most 1 question** to the user, then route.
-- Large feature → OpenSpec cycle: `product-owner` (proposal) → `architect` adversarial pass
+- Large feature → OpenSpec cycle: `grilling` (main session) → `product-owner` (proposal) → `architect` adversarial pass
   → `architect` (deltas + design + tasks) → dev agents (tasks) → `tester` → `/sdd-core:review-harness`
   (which runs `code-reviewer` as its conventions angle) →
   `/opsx:verify` → commit → `/opsx:archive` → post-archive (`doc-writer` if docs are impacted).
@@ -50,6 +50,9 @@ agent fits or the task is trivial (quick read, factual question).
   `product-owner` have `Write`/`Edit`, restricted by instruction to their deliverables
   (`openspec/changes/<id>/`, `docs/adr/`; `proposal.md`); their `Bash` is for reading.
 - `code-reviewer` has no `Edit`: it reports, it does not fix.
+- Every agent has `Skill`: its definition names the skills it invokes and when. Without `Skill` in
+  `tools`, an agent cannot invoke a skill at all, whatever its text says. User-invoked skills
+  (`disable-model-invocation`) stay the user's: an agent proposes them, it never runs them.
 
 ## Adding an agent
 1. Create `<name>.md`:
@@ -57,10 +60,11 @@ agent fits or the task is trivial (quick read, factual question).
    ---
    name: <name>
    description: USE WHEN <concrete triggers>. DO NOT USE <neighbouring cases → other agent>.
-   tools: [Read, Edit, Write, Bash, Grep, Glob]
+   tools: [Read, Edit, Write, Bash, Grep, Glob, Skill]
    model: {{AGENT_MODEL}}
    ---
    ```
-2. Describe mission, mandatory reading, hard rules, workflow, anti-patterns, deliverable.
+2. Describe mission, mandatory reading, hard rules, workflow, the skills it invokes and when,
+   anti-patterns, deliverable.
 3. Update the routing table above, [`/AGENTS.md`](../../AGENTS.md) and `CLAUDE.md`.
 4. Test it by invoking it on a small task.

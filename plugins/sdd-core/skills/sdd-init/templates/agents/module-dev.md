@@ -1,7 +1,7 @@
 ---
 name: {{MODULE_NAME}}-dev
 description: USE WHEN implementing in the `{{MODULE_NAME}}` module (`{{MODULE_PATH}}`, {{MODULE_STACK}}) — {{MODULE_TRIGGERS}} — or during the /opsx:apply phase for this module's tasks. DO NOT USE <!-- sdd:if multi-module -->if the task leaves `{{MODULE_PATH}}` (chain with the other module's dev agent, or `full-stack-dev` for a small coherent batch), nor <!-- sdd:endif -->for cross-cutting design (`architect`), review (`code-reviewer`) or docs only (`doc-writer`).
-tools: [Read, Edit, Write, Grep, Glob, Bash]
+tools: [Read, Edit, Write, Grep, Glob, Bash, Skill]
 model: {{AGENT_MODEL}}
 ---
 
@@ -43,6 +43,14 @@ An external contract is born first in the **spec deltas**, not from the graph. T
 targeted files. After a notable change: `graphify update .`.
 <!-- sdd:endif -->
 
+## Skills — invoke them, do not paraphrase them
+- Before writing production code: invoke the Skill tool with `superpowers:test-driven-development`
+  and follow it — red (the delta scenario's test fails for the right reason), green, refactor.
+- A test fails unexpectedly, or you are fixing a bug: invoke `superpowers:systematic-debugging`
+  before changing anything; no fix without a root cause.
+- Before reporting "done": invoke `superpowers:verification-before-completion`.
+- A new or conflicting domain term: invoke `sdd-core:domain-modeling`.
+
 ## Workflow
 1. **Understand**: re-read the code of the target area, spot the local conventions.
 2. **Design**: signatures, types at the boundaries, owner of the logic (the domain, not the
@@ -50,9 +58,10 @@ targeted files. After a notable change: `graphify update .`.
 <!-- sdd:if migrations -->
 3. **Migrations** first if the schema is touched.
 <!-- sdd:endif -->
-4. **Implement**, keeping the domain framework-independent.
-5. **Test**: {{MODULE_TEST_KINDS}} — pure logic in unit tests without starting the framework,
-   flows in integration; every scenario of the spec deltas = one test.
+4. **Test first**: for each scenario of the spec deltas, its test, run and seen failing —
+   {{MODULE_TEST_KINDS}}; pure logic in unit tests without starting the framework, flows in
+   integration.
+5. **Implement** until it passes, keeping the domain framework-independent.
 6. **Verify**: actually run `{{MODULE_CHECK}}`; fix until green (never by weakening a test).
 7. **Docs**: the sub-module's README if its public API changes, `docs/` if an external contract
    changes.

@@ -41,8 +41,8 @@ touches it (no massive reverse-spec of the existing code).
 Every non-trivial feature follows the cycle:
 
 ```
-/opsx:new <change-id>   → framing (proposal + classification.yaml: intent and irreversible gates, with evidence)
-[adversarial pass]      → the proposal and its classification are challenged (always, scaled to the change)
+/opsx:new <change-id>   → framing: grilling with the owner (main session), then product-owner writes the proposal + classification.yaml (intent and irreversible gates, with evidence)
+[adversarial pass]      → the proposal and its classification are challenged (always, scaled to the change); open objections → a grilling round
 framing merge (owner)   → branch docs/<id>-framing, change folder only<!-- sdd:if github -->, as a PR<!-- sdd:endif -->; the owner's merge is the approval
 /opsx:ff                → spec deltas + design + tasks, on <type>/<id> cut after the framing merge (refused without it)
 /opsx:apply             → task-by-task implementation, one commit per task group (docs/CONTRIBUTING.md §2)
@@ -64,7 +64,8 @@ merge (human)           → the agent stops at the commit on the branch
 <!-- sdd:endif -->
 ```
 
-- **Adversarial pass, always, scaled to the change**: before `/opsx:ff`, dispatch `architect` on the proposal with the mission to **break** it (fragile assumptions, ignored alternatives, hidden costs in {{DOMAIN_RISKS}}, conflicts with `docs/adr/`). Structural change (new module, new contract, migration, cross-cutting choice, new mechanism) → a full attempt, every objection with its failure scenario. Small change → a short challenge: the five strongest objections at most, one pass. The classification is challenged too (a gate declared closed that a trigger or the diff to come would open). Objections are resolved in the proposal, or put to the user, before the framing merge.
+- **Framing = grilling, then the proposal**: after `/opsx:new`, the main session invokes the `grilling` skill (`grilling:grilling`) and interviews the owner on the need until every decision the proposal depends on is settled: rounds of five questions at most, each with a concrete example and the recommended answer; facts come from the code and the specs, never from the owner. The settled decisions, verbatim, are the brief of `product-owner`, which writes `proposal.md` and `classification.yaml` (a sub-agent cannot interview: it returns what is still open, and the main session takes it back to the owner). A new, fuzzy or conflicting domain term → `sdd-core:domain-modeling` on it.
+- **Adversarial pass, always, scaled to the change**: before `/opsx:ff`, dispatch `architect` on the proposal with the mission to **break** it (fragile assumptions, ignored alternatives, hidden costs in {{DOMAIN_RISKS}}, conflicts with `docs/adr/`). Structural change (new module, new contract, migration, cross-cutting choice, new mechanism) → a full attempt, every objection with its failure scenario. Small change → a short challenge: the five strongest objections at most, one pass. The classification is challenged too (a gate declared closed that a trigger or the diff to come would open). Objections are resolved in the proposal, or put to the owner as a `grilling` round (blocking ones and those to clarify, each with the architect's recommended answer), before the framing merge.
 - **Classification, with the proposal**: `openspec/changes/<id>/classification.yaml` ([`docs/OPENSPEC_GUIDE.md`](docs/OPENSPEC_GUIDE.md) §7). **Intent gate** open when the change visibly alters a business gesture, a screen, what the product shows or how it feels, whatever the layer → the owner's QA before merge, on a local environment the agent prepares with `/local-qa:qa-prepare <id>` once its own QA passes (it reuses only compatible services of this project, starts the rest on free ports, never stops or reconfigures what it did not start, and hands the owner a brief: the link, 3 to 6 gestures with their expected results, before/after captures); `/local-qa:qa-prepare --cleanup` after the QA stops only what it started. **Irreversible gate** open when the change is not code only (migration, stored format, rollout step after merge, infrastructure, consumed public endpoint, paid quota) → the owner's go. Each answer with its evidence; a trigger of [`.sdd/triggers.yaml`](.sdd/triggers.yaml) the change will hit on a gate kept closed is listed as a waiver with its reason. Technical risk opens no gate: it raises review depth. Check: `python3 .sdd/bin/merge_conditions.py validate openspec/changes/<id>/classification.yaml`.
 - **Framing merge = approval**: after the adversarial pass, the change folder alone (proposal, classification) goes on a `docs/<id>-framing` branch<!-- sdd:if github --> and a pull request<!-- sdd:endif -->; the owner merging it into `{{DEFAULT_BRANCH}}` approves both. Nothing is designed or implemented before: the OpenSpec rules stop `/opsx:ff` and apply while the classification is not on `{{DEFAULT_BRANCH}}`. A classification found wrong during apply → a **new** framing branch amending it (`docs/<id>-framing-2`), then merge `{{DEFAULT_BRANCH}}` into the change branch; never edit the approved classification in the change branch (it is gate machinery: the edit is not read and opens the irreversible gate).
 - **Gate machinery**: a diff touching `.sdd/`, `.claude/hooks/`, `.claude/settings.json`, `.github/`, a `.gitattributes`, `.gitmodules`, `openspec/config.yaml`, a `vercel.json`, or adding, changing or deleting any `classification.yaml` outside a framing pull request, opens the irreversible gate, whatever the classification says. A change pull request touches its own change folder only, from a branch named after it.<!-- sdd:if github --> The `merge-conditions` commit status (`.github/workflows/merge-conditions.yml`, run from `{{DEFAULT_BRANCH}}`) says which gates a pull request opens (`gates: none`, `intent`, `irreversible`, `intent+irreversible`, `framing`, `unclassified`, `invalid`) and the `{{DEFAULT_BRANCH}}` commit it judged against (`; base <sha7>`), and is green only with the required CI, the `review-harness` and `opsx-verify` statuses and no unaccounted trigger hit. Only `gates: none` judged against the current head of `{{DEFAULT_BRANCH}}` may be merged without the owner. It guards against mistakes, not a deliberate overwrite: the deploy guard recomputes the verdict instead of reading it.<!-- sdd:endif -->
@@ -72,10 +73,25 @@ merge (human)           → the agent stops at the commit on the branch
 <!-- sdd:if github -->
 - **Delivery, after the merge** ([`docs/OPENSPEC_GUIDE.md`](docs/OPENSPEC_GUIDE.md) §8): (1) **in flight** — the merge command itself ends with `&& gh pr edit <n> --add-label in-flight` (the hook allows exactly that after the merge, in the same command; when the owner merged, or the label edit failed, run `gh pr edit <n> --add-label in-flight` alone in the next call). While the label is on, no other change merges. (2) **Verification** — once each target of [`.sdd/deployment.yaml`](.sdd/deployment.yaml) whose `trigger` the diff hits has deployed: its `probes`, then the change's own post-deploy checks (the last group of `tasks.md`); for each scheduled job whose `paths` the diff touches, wait for its next run and check it (its `probe`). (3) **Passed** → `gh pr edit <n> --remove-label in-flight`, then PR 2 on `<type>/<id>-archive` (cut from `origin/{{DEFAULT_BRANCH}}` with `--no-track`): `/opsx:archive`, post-archive, commit `chore(<id>)`, merged through the same route (no label: it deploys no code); then the final report to the owner (format in OPENSPEC_GUIDE §8). (4) **Failed** → each affected target's `rollback` command first (production back to the previous deployment, no rebuild), then a revert PR on `revert/<id>`: `git revert` of the merged commit (`-m 1` for a merge commit) plus `openspec/changes/<id>/revert.yaml` (`revert_of`, `merge_commits` — every lot's merge, the newest included —, `reason`); `merge-conditions` accepts it with no gate only when its diff is the exact inverse of those merges. Move the label (`--remove-label in-flight` on the change's PR, then the revert's merge command ends with `--add-label in-flight` on the revert), verify the revert's deploy, remove the label, alert the owner with the diagnosis, and open a fix change (`/opsx:new fix-<id>`). The reverted change is never silently re-opened. (5) **A refused deploy** (an open issue labelled `deploy-refused`): the merge route refuses every agent merge until it is resolved — a pull request that reverts the refused commit exactly (the owner merges it), or the owner's reset variable (`docs/OPENSPEC_GUIDE.md` §8) — and the issue closed; report it, never work around it.
 <!-- sdd:endif -->
-- **Post-archive**: (1) tick or remove the ticket in [`docs/ROADMAP.md`](docs/ROADMAP.md) (its "Update process"); (2) "did this change touch a contract, a convention, the stack?" → yes: `doc-writer` on the affected docs; no: say so ("post-archive: no doc impact"); (3) is the `## Purpose` of each touched spec (or created one, "TBD") still accurate? if not, the session that archives fixes it in the archive commit (exception above; not `doc-writer`)<!-- sdd:if graphify -->; (4) refresh the graph (§10, `--force` rule)<!-- sdd:endif -->.
+- **Post-archive**: (1) tick or remove the ticket in [`docs/ROADMAP.md`](docs/ROADMAP.md) (its "Update process"); (2) "did this change touch a contract, a convention, the stack?" → yes: `doc-writer` on the affected docs; no: say so ("post-archive: no doc impact"); (3) is the `## Purpose` of each touched spec (or created one, "TBD") still accurate? if not, the session that archives fixes it in the archive commit (exception above; not `doc-writer`)<!-- sdd:if graphify -->; (4) refresh the graph (§10, `--force` rule)<!-- sdd:endif -->; then the proposals below.
+- **What the agent proposes, unasked** — user-invoked skills are never run by an agent; the main session proposes them at these moments, in one line with the reason, and the owner starts them:
+  - `/handoff:handoff <next goal>` — before a heavy phase (`/opsx:ff`, `/opsx:apply`, the review harness, a new `/opsx:new`) when the context already holds a long framing, a debugging session or another change; after each merged pull request or archived change in a long session; as soon as the context gets heavy or the topic changes. Never start a new `/opsx:new` in a loaded context without having proposed it.
+  - `/sdd-core:improve-codebase-architecture` — at post-archive, when five or more changes were archived (`openspec/changes/archive/`, date prefix) after the `Last architecture audit:` date of `docs/ROADMAP.md`. Never in the middle of a change.
+  - `/sdd-core:retro` — in the final report, when the review harness needed two fix rounds or more, escalated, or the session hit the same failure twice.
+  - `/local-qa:qa-prepare <id>` — when the intent gate is open (above).
+- **Skills by phase** — the project's instructions win over a generic process skill (superpowers' own rule):
+
+  | Phase | Use | Never in its place |
+  |---|---|---|
+  | Framing | `grilling`, `sdd-core:domain-modeling`, `/opsx:new` | `superpowers:brainstorming` (its design doc and plan would compete with the OpenSpec artifacts) |
+  | Design | `/opsx:ff`, `architect` with `sdd-core:codebase-design` on a structural change | `superpowers:writing-plans` |
+  | Implementation | `/opsx:apply` with the routing table (§8); dev agents invoke `superpowers:test-driven-development` and `superpowers:systematic-debugging` | `superpowers:executing-plans`, `superpowers:subagent-driven-development` |
+  | Review | `/sdd-core:review-harness` | `superpowers:requesting-code-review` |
+  | Delivery | §7 and the merge route | `superpowers:finishing-a-development-branch` (its merge and PR options bypass the verified route) |
+
+  `superpowers:verification-before-completion`, `systematic-debugging` and `test-driven-development` stay valid everywhere, hotfixes included.
 - The roadmap is the pool: an epic/ticket = a future change; a deferred idea = a line in "Backlog — flagged work", not a session memory.
 - Trivial hotfix (< 30 min, specified behaviour intact): direct implementation allowed, without an OpenSpec change — but on a `fix/<scope>-<desc>` branch, delivered like everything else (§7).
-- Generic process skills (`superpowers:brainstorming`, `writing-plans`) never replace `/opsx:new` / `/opsx:ff`; `systematic-debugging`, `verification-before-completion`, `test-driven-development` remain valid everywhere.
 
 ## 4. Language
 
@@ -151,7 +167,7 @@ merge (human)           → the agent stops at the commit on the branch
 
 | The user asks for… | Agent |
 |---|---|
-| fuzzy business need, prioritisation, user story, proposal | `product-owner` |
+| fuzzy business need, prioritisation, user story, proposal | `grilling` in the main session first (a sub-agent cannot interview), then `product-owner` with the settled decisions |
 | cross-cutting technical choice<!-- sdd:if multi-module -->, impact > 1 module<!-- sdd:endif -->, contract, spec deltas, design.md, ADR | `architect` |
 <!-- sdd:each module -->
 | code in `{{MODULE_PATH}}` ({{MODULE_STACK}}) | `{{MODULE_NAME}}-dev` |
@@ -215,10 +231,12 @@ Details: [`docs/GRAPHIFY.md`](docs/GRAPHIFY.md).
 
 | Request | Tool |
 |---|---|
-| Long session, change of topic, polluted context | `/handoff:passation [next goal]` then `/clear` or a new session (preferred over `/compact`) |
-| Fuzzy or conflicting term during framing | skill `sdd-core:domain-modeling` → [`docs/GLOSSARY.md`](docs/GLOSSARY.md) |
-| Periodic architecture audit (every ~5 changes, never in the middle of one) | `/sdd-core:improve-codebase-architecture [area]` |
-| Failed session or painful post-archive | `/sdd-core:retro` |
+| Stress-test a plan or a design before building, framing interview | `grilling` (auto) · `/grilling:grill-me <plan>` by hand |
+| Long session, change of topic, polluted context, before a heavy phase | `/handoff:handoff [next goal]` (proposed by the agent, §3) then `/clear` or a new session (preferred over `/compact`) |
+| Fuzzy or conflicting term during framing | `sdd-core:domain-modeling` (auto) → [`docs/GLOSSARY.md`](docs/GLOSSARY.md) |
+| Design of a structural change: seams, deep modules, design it twice | `sdd-core:codebase-design` (auto, `architect`) |
+| Periodic architecture audit (five archived changes, never in the middle of one) | `/sdd-core:improve-codebase-architecture [area]` (proposed by the agent, §3) |
+| Failed session or painful harness | `/sdd-core:retro` (proposed by the agent, §3) |
 | The owner's QA of a change (intent gate) | `/local-qa:qa-prepare <id>` (environment + brief), then `/local-qa:qa-prepare --cleanup` |
 <!-- sdd:if ui -->
 | a11y/UX review of a component or a UI diff | `/sdd-ui:web-design-guidelines <files>` |
@@ -236,11 +254,10 @@ All agents run on `model: {{AGENT_MODEL}}`, written in each file.<!-- sdd:if !le
 No shared working style is imposed: each developer sets their own (Claude memory, `~/.claude/CLAUDE.md`).
 <!-- sdd:endif -->
 <!-- sdd:if work-style -->
-- **Short, concrete framing**: state the goal first, then **3 questions at most** per round, each with a concrete example (payload, figures, user journey, before/after call) and the recommended answer. What the code or the specs<!-- sdd:if graphify --> (or the graph)<!-- sdd:endif --> can tell is the agent's job: never ask for it.
+- **Short, concrete framing**: state the goal first, then **5 questions at most** per round (the `grilling` skill), each with a concrete example (payload, figures, user journey, before/after call) and the recommended answer. What the code or the specs<!-- sdd:if graphify --> (or the graph)<!-- sdd:endif --> can tell is the agent's job: never ask for it.
 - **All the way once the framing is agreed**: chain all the slices (modules, tests, docs) without asking "go?" between them. Adversarial review and honest verification are kept. Stop only for a real decision, a design gap discovered along the way, or a merge the agent may not make (red CI, open BLOCKER/MAJOR, an open gate: the owner merges).
 - **A single final report** on a large task (full change, several agents), with fixed sections: done / decisions taken / found and fixed / caveats / tests (with figures: N passed, M failed, names) / what I expect from you. No stream of partial messages between agents.
 - **Long agents in the background**: a dev or test agent on a full change → `run_in_background`, announce the agent + reason + approximate duration, move on to something else; never invent its result before the notification. One heavy build/test run at a time on the machine.
-- **Early handoff**: after each merged PR or archived change in a long session, and as soon as the context gets heavy, offer `/handoff:passation <next goal>` rather than chaining. Never start an `/opsx:new` in a loaded context without having offered it.
 <!-- sdd:endif -->
 <!-- sdd:if caveman -->
 - **Caveman**: compressed replies (`caveman` plugin); normal prose for security warnings, confirmations of irreversible actions, code, commits and PRs.

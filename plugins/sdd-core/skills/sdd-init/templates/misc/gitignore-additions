@@ -1,7 +1,9 @@
 # sdd:note: appended to the project's .gitignore (skip lines already present). Keep the section header.
 
 # --- Claude Code / SDD tooling ---
-# Handoff documents between sessions (/handoff:passation), per developer
+# Handoff documents between sessions (/handoff:handoff), per developer; .claude/passation/ is the
+# folder older versions wrote to
+/.claude/handoff/
 /.claude/passation/
 # Local QA environments (/local-qa:qa-prepare): what was started, captures, per worktree
 /.claude/qa/

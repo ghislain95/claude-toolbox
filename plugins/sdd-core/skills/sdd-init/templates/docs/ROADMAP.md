@@ -53,6 +53,8 @@ becomes an OpenSpec change to frame (`/opsx:new`) when it is prioritised.
 
 ## Update process for this roadmap
 
+- Last architecture audit: none yet — `/sdd-core:improve-codebase-architecture` writes its date here; the post-archive step proposes the next one once five changes are archived after it (`CLAUDE.md` §3).
+
 - Each completed ticket is ticked or removed. Ticking = prefixing the description with `✅` and citing the change that delivered it ("— delivered by `<change-id>` (date)"), at post-archive (`CLAUDE.md` §3). A closed "Backlog — flagged work" line is removed.
 - Prefix legend:
   - `✅` delivered: `` | 1.1 | ✅ <description> — delivered by `<change-id>` (YYYY-MM-DD) | M | ``. The date is the **folder prefix** in `openspec/changes/archive/` (uniform, verifiable convention). Without an archived change (hotfix, tooling): `` delivered by `<short hash>` (commit date) ``. Any caveat (test skipped outside CI, test double…) goes at the end of the line: ` — caveat: …`; only tick if the promised behaviour exists.

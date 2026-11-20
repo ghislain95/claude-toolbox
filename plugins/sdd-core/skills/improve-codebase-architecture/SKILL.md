@@ -7,11 +7,12 @@ disable-model-invocation: true
 
 # Improve Codebase Architecture
 
-Adapted from mattpocock/skills `improve-codebase-architecture` + `codebase-design` (MIT).
+Adapted from mattpocock/skills `improve-codebase-architecture` (MIT); its design vocabulary and
+reference files live in the `sdd-core:codebase-design` skill, next to this one.
 Surface architectural friction and propose **deepening opportunities**: refactors that turn
 shallow modules into deep ones. The aim is testability and agent-navigability.
 
-Read [VOCABULARY.md](VOCABULARY.md) first and use its terms exactly (**module**, **interface**,
+Read [VOCABULARY.md](../codebase-design/VOCABULARY.md) first and use its terms exactly (**module**, **interface**,
 **depth**, **seam**, **adapter**, **leverage**, **locality**, the deletion test, "one adapter =
 hypothetical seam, two = real"). Domain names come from `docs/GLOSSARY.md`.
 
@@ -58,7 +59,7 @@ hot spots and note friction:
 - tightly-coupled modules leaking across their seams;
 - untested parts, or parts hard to test through their current interface.
 
-Apply the **deletion test** to every suspect. See [DEEPENING.md](DEEPENING.md) for dependency
+Apply the **deletion test** to every suspect. See [DEEPENING.md](../codebase-design/DEEPENING.md) for dependency
 categories (ex. a database or broker runnable in tests via Testcontainers / an in-memory stand-in =
 local-substitutable; a third-party SaaS API = true external).
 
@@ -76,14 +77,15 @@ Then ask: "Which of these would you like to explore?"
 
 Once the user picks a candidate, frame it **with** them:
 
-- Goal first. Rounds of **at most 3 questions**, each with a concrete example (code excerpt,
-  before/after call site) and your recommended answer. Use AskUserQuestion when options are discrete.
+- Goal first, then invoke the Skill tool with `grilling:grilling` and grill the user on the
+  candidate: its rounds (five questions at most, each with a concrete example — code excerpt,
+  before/after call site — and your recommended answer) replace any ad-hoc question list.
 - Facts are your job: look them up (graph, code, specs) instead of asking.
-- Cover: constraints, dependencies (category per DEEPENING.md), shape of the deepened module,
+- Cover: constraints, dependencies (category per `../codebase-design/DEEPENING.md`), shape of the deepened module,
   what sits behind the seam, which tests survive (interface = test surface; replace, don't layer).
 - A wide-blast candidate (its callers — `graphify affected` or grep — cross more than one module) is framed as
   add → migrate callers → remove, each step green.
-- To compare alternative interfaces, use [DESIGN-IT-TWICE.md](DESIGN-IT-TWICE.md).
+- To compare alternative interfaces, use [DESIGN-IT-TWICE.md](../codebase-design/DESIGN-IT-TWICE.md).
 - New or sharpened domain term → propose it for `docs/GLOSSARY.md` (see the `sdd-core:domain-modeling` skill).
 
 ## 4. Outcome
@@ -91,6 +93,9 @@ Once the user picks a candidate, frame it **with** them:
 - Accepted candidate → **one line** in `docs/ROADMAP.md`, section "Backlog — flagged
   work" (item | description | size | origin), to be run later as an OpenSpec change.
   No code here.
+- Whatever the outcome, update the line `Last architecture audit:` of `docs/ROADMAP.md` (its
+  "Update process" section) to today's date: the post-archive step counts the changes archived
+  since that date to propose the next audit (`CLAUDE.md` §3).
 - Rejected with a load-bearing reason → offer to record it (ADR in `docs/adr/` if it meets the
   three criteria of `sdd-core:domain-modeling`, otherwise a note in the relevant architecture doc) so future
   audits don't re-suggest it. Skip ephemeral reasons ("not now").

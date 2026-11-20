@@ -64,9 +64,9 @@ In a Claude Code session (any folder):
 /plugin install sdd-core@claude-toolbox
 ```
 
-`sdd-core` declares `superpowers` (official marketplace), `handoff` and `local-qa` (this catalog) as
+`sdd-core` declares `superpowers` (official marketplace), `handoff`, `grilling` and `local-qa` (this catalog) as
 dependencies: they are installed along with it, `superpowers` **only if the official marketplace is added** (first line, harmless if it already is). Without it,
-`sdd-core` installs but refuses to load. Check with `/plugin` that all four are enabled.
+`sdd-core` installs but refuses to load. Check with `/plugin` that all five are enabled.
 
 Then turn on auto-update for the kit — it is **off by default** for third-party marketplaces:
 `/plugin` → **Marketplaces** → `claude-toolbox` → **Enable auto-update** (see §6).
@@ -155,7 +155,8 @@ push to: then you push and merge), `ALLOW_FORCE_WITH_LEASE`. Projects set up wit
 ### A feature
 
 ```
-/opsx:new <change-id>     framing: product-owner writes proposal.md (intent, scope, non-goals)
+/opsx:new <change-id>     framing: the session grills you (rounds of five questions at most, each
+                             with its recommended answer), then product-owner writes proposal.md
                            → adversarial pass, always: the architect tries to break the proposal
                              (full attempt if structural, five objections at most otherwise)
 /opsx:ff                  architect: spec deltas + design.md + tasks.md
@@ -174,8 +175,10 @@ push to: then you push and merge), `ALLOW_FORCE_WITH_LEASE`. Projects set up wit
 (With a GitHub remote. Without one, the archive is committed on the change branch and a human
 merges.)
 
-You can just say "I want to be able to export invoices as CSV": the session routes to
-`product-owner` and starts the cycle. It always announces the chosen agent ("Routing → `architect`
+You can just say "I want to be able to export invoices as CSV": the session grills you on what it
+needs to know, routes to `product-owner` and starts the cycle. You don't have to call skills: the
+agents invoke theirs, and the session proposes the user-invoked ones (handoff, architecture audit,
+retro, local QA) at the right moment — the full list is in [`CATALOG.md`](CATALOG.md). It always announces the chosen agent ("Routing → `architect`
 because…").
 
 ### A bug
@@ -188,10 +191,11 @@ because…").
 
 | Situation | Tool |
 |---|---|
-| Long session, change of topic, polluted context | `/handoff:passation [next goal]`, then `/clear` — preferred over `/compact` |
-| Fuzzy or disputed domain term | the `domain-modeling` skill updates `docs/GLOSSARY.md` |
-| Every ~5 changes, never in the middle of one | `/sdd-core:improve-codebase-architecture` |
-| Failed session, painful post-archive | `/sdd-core:retro` (improves the agent's environment, not the code) |
+| Long session, change of topic, polluted context, before a heavy phase | `/handoff:handoff [next goal]` (the session proposes it), then `/clear` — preferred over `/compact` |
+| A plan to challenge, in or out of a change | `/grilling:grill-me <plan>` |
+| Fuzzy or disputed domain term | the `domain-modeling` skill updates `docs/GLOSSARY.md` (auto) |
+| Five changes archived since the last audit, never in the middle of one | `/sdd-core:improve-codebase-architecture` (the session proposes it) |
+| Painful review, failed session | `/sdd-core:retro` (the session proposes it; improves the agent's environment, not the code) |
 | UI review (with `sdd-ui`) | `/sdd-ui:web-design-guidelines <files>`, `sdd-ui:break-ui` |
 
 ---

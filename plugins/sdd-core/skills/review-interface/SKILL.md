@@ -11,14 +11,17 @@ robustness to bad data, consistency with the project's design rules, motion. Whe
 
 ## Method
 
-1. With the `sdd-ui` plugin installed (its files are under the plugin cache, next to `sdd-core`:
-   `<plugins>/sdd-ui/skills/<skill>/`), apply on the changed UI files:
-   - `web-design-guidelines` (accessibility and UX rules) — convert each of its remarks into the
-     shared format, with a `Fails when` (the user and the action that fails);
-   - `break-ui`'s **analysis only**: map the fields the changed components render and pick worst-case
-     values; check by reading the code or rendering with those values in a scratch file. Never build
-     its demo toggle or fixtures in the project, never wait for a user;
-   - `review-animations`' `SKILL.md` and `STANDARDS.md` when motion changed.
+1. With the `sdd-ui` plugin installed, apply on the changed UI files:
+   - invoke the Skill tool with `sdd-ui:web-design-guidelines` (accessibility and UX rules) and
+     convert each of its remarks into the shared format, with a `Fails when` (the user and the action
+     that fails);
+   - invoke `sdd-ui:break-ui` and apply its **analysis only**: map the fields the changed components
+     render and pick worst-case values; check by reading the code or rendering with those values in a
+     scratch file. Never build its demo toggle or fixtures in the project, never wait for a user;
+   - when motion changed, read `review-animations`' `SKILL.md` and `STANDARDS.md` (it is
+     user-invoked, so it cannot be invoked: find them with
+     `ls -d ~/.claude/plugins/cache/*/sdd-ui/*/skills/review-animations | sort -V | tail -1`).
+   Whether `sdd-ui` is installed: the two skills above are in your skill list.
    Without `sdd-ui`, check by hand: labels and roles, keyboard path, visible focus, contrast, long and
    empty values, loading and error states.
 2. Check the diff against the project's design rules (tokens only, no arbitrary values, components

@@ -1,7 +1,7 @@
 ---
 name: code-reviewer
 description: USE WHEN the user asks to "review", "re-read", "validate", "audit this code", "look at my PR", "look at my diff", or after a hotfix outside an OpenSpec change. Inside a change it runs as the conventions angle of /sdd-core:review-harness. DO NOT USE to rewrite code — this agent reports, it does not fix.
-tools: [Read, Grep, Bash]
+tools: [Read, Grep, Bash, Skill]
 model: {{AGENT_MODEL}}
 ---
 
@@ -51,7 +51,7 @@ the reason. "To make the test pass" is not a reason. A threshold silently relaxe
 
 ## Vocabulary
 A new concept named differently from [`docs/GLOSSARY.md`](../../docs/GLOSSARY.md) (or missing from
-the glossary) → 🟡 MINOR, propose the canonical term (skill `sdd-core:domain-modeling`).
+the glossary) → 🟡 MINOR; invoke the Skill tool with `sdd-core:domain-modeling` to propose the canonical term.
 
 ## Posture
 - **No politeness**: no "great work", no filler.
@@ -88,8 +88,9 @@ the glossary) → 🟡 MINOR, propose the canonical term (skill `sdd-core:domain
 <!-- sdd:if ui -->
 ### Interface
 - Accessibility: labels, justified `aria-*`, visible focus, keyboard navigation, contrast.
-- UI diff → run `/sdd-ui:web-design-guidelines <files>`; motion changed → flag it for
-  `/sdd-ui:review-animations` (run by the user).
+- UI diff → invoke the Skill tool with `sdd-ui:web-design-guidelines` on the changed UI files
+  (when the `sdd-ui` plugin is installed) and turn its remarks into findings; motion changed → flag
+  it for `/sdd-ui:review-animations` (user-invoked: you propose it, you do not run it).
 - No stray debug logs.
 <!-- sdd:endif -->
 

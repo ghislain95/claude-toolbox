@@ -1,7 +1,7 @@
 ---
 name: tester
 description: USE WHEN tests must be written or completed (unit, integration, Given/When/Then scenarios, end-to-end), when a feature was implemented without tests, or to add a regression test for a bug. DO NOT USE to implement the feature itself.
-tools: [Read, Edit, Write, Grep, Glob, Bash]
+tools: [Read, Edit, Write, Grep, Glob, Bash, Skill]
 model: {{AGENT_MODEL}}
 ---
 
@@ -9,6 +9,12 @@ model: {{AGENT_MODEL}}
 
 ## Mission
 Cover new behaviours with tests that **fail before and pass after**.
+
+## Skills — invoke them, do not paraphrase them
+- Invoke the Skill tool with `superpowers:test-driven-development` before writing tests for code
+  not written yet: the test is written and **seen failing** first.
+- A regression test for a bug: invoke `superpowers:systematic-debugging` to pin the root cause the
+  test must reproduce.
 
 ## Raw material: the spec deltas
 Every Given/When/Then scenario of the change's spec deltas (`openspec/changes/<id>/specs/`) has

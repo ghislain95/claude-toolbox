@@ -57,7 +57,7 @@ its `mechanical.<angle>` entries, `budget.effort`, `budget.bug_hunt_level` (for 
 instruction to answer in the format of `FINDINGS.md`.
 
 - **Conventions** is dispatched as the project's `code-reviewer` agent itself, with the
-  `review-conventions` skill as its brief (read from its path; that agent cannot invoke skills). No `code-reviewer` agent → a general agent with that skill.
+  `review-conventions` skill as its brief, read from its path like every angle's. No `code-reviewer` agent → a general agent with that skill.
   Never ask an agent to dispatch another one.
 - Agents run **sequentially**; never two heavy builds at once (`budget.heavy_builds`).
 - Before each dispatch, apply the budget rule (§6).
