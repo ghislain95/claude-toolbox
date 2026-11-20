@@ -1,6 +1,6 @@
 {
   "name": "session-hud",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "A one-line band above the prompt, in every project: context, cost or rate limit, session time, tool calls and errors, the model, and how many tasks run in the background",
   "author": {
     "name": "ghislain95"

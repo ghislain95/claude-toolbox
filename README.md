@@ -18,6 +18,26 @@ claude plugin marketplace add ghislain95/claude-toolbox
 | `local-qa` | skill | `/local-qa:qa-prepare`, a local QA environment for a change that disturbs no other project, and the QA brief |
 | `openspec-cockpit`, `conversation-cards`, `session-hud`, `background-tasks` | mod | Desktop app only, see [`mods/README.md`](mods/README.md) |
 
+## Pick what you need
+
+Every plugin installs on its own. After `claude plugin marketplace add ghislain95/claude-toolbox`:
+
+| You want | Install | Notes |
+|---|---|---|
+| The whole spec-driven workflow | `sdd-core` | Brings `superpowers`, `handoff`, `grilling` and `local-qa`; set up a project with [the prompt below](#set-up-a-project-with-a-single-prompt) |
+| Only the desktop app's mods, any project | `conversation-cards`, `session-hud`, `background-tasks` (any of them) | Desktop app only; see [`mods/README.md`](mods/README.md) |
+| An OpenSpec dashboard, without this workflow | `openspec-cockpit` (and the mods above if you like) | Shows in projects that have `openspec/` |
+| A handoff document to resume in a fresh session | `handoff` | Any project |
+| To be grilled on a plan or a design before building it | `grilling` | Any project |
+| A local QA environment for a change | `local-qa` | Any project |
+| UI review and polish skills | `sdd-ui` | Any project |
+
+Every skill, its mode (auto, proposed by the agent, manual) and when it fires: [`CATALOG.md`](CATALOG.md).
+
+One command each, `claude plugin install <plugin>@claude-toolbox`, or `/plugin` in Claude Code. Then turn on
+auto-update for this catalog (`/plugin` → **Marketplaces** → `claude-toolbox` → **Enable auto-update**): it is off
+by default, and without it no new version reaches you.
+
 > **Coming from `sdd-kit`?** The catalog was renamed. A marketplace keeps the name it was added
 > under, so replace it once: `claude plugin marketplace remove sdd-kit` (this uninstalls its plugins
 > and deletes their saved data), then add `ghislain95/claude-toolbox` and reinstall. Projects set up

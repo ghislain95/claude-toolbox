@@ -7,6 +7,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { CardToggles } from '../types'
 import { messageShape, renderDeliverables, renderLong, renderQuestions, renderReport } from './cards'
+import { readMode } from './shared/mode'
 import { collectFacts, resolveGit } from './facts'
 import { CONTRACT, spinnerSuffix, togglesText } from './logic'
 import { withoutCockpitBlock, withoutQuestions } from './parse'
@@ -27,11 +28,16 @@ const settled = atom({ plugin: 'conversation-cards', key: 'settled' } as const, 
 
 const REFRESH_MS = 30 * 1000
 
+/** How often the app's light or dark mode is looked at. */
+const MODE_MS = 5000
+
 let home = ''
 let git = 'git'
 let inFlight: Promise<void> | undefined
 /** Claude's replies drawn as cards so far: once the person sends anything, they are all settled. */
 let drawnReplies = new Set<string>()
+/** The app's light or dark mode when last looked at: a change redraws the cards (their tiles differ). */
+let lastMode: string | null = null
 
 /** Facts the cards read (change names, recent commits) and the context, written only when they change. */
 async function collectAndPublish($: EngineInterface): Promise<void> {
@@ -74,6 +80,13 @@ export const register: Register = on => {
   inFlight = undefined
   drawnReplies = new Set()
 
+  // A change of theme redraws: a few native colours (tiles, chips) differ between light and dark.
+  on('config.set', async ($, e, next) => {
+    const result = await next(e)
+    if (e.key === 'theme') $.ui.invalidate('ui.render')
+    return result
+  })
+
   on('session.start', async ($, e, next) => {
     const [root, homeDir, gitPath, stored] = await Promise.all([
       $.session.root(),
@@ -94,6 +107,12 @@ export const register: Register = on => {
     })
     void refresh($)
     $.clock.every(REFRESH_MS, () => void refresh($))
+    // The app's appearance is not a setting of the session: look at it every few seconds, redraw on a change.
+    $.clock.every(MODE_MS, async () => {
+      const mode = await readMode($)
+      if (lastMode !== null && mode !== lastMode) $.ui.invalidate('ui.render')
+      lastMode = mode
+    })
     // A reload redraws the transcript before this hook has run: draw it again now that the facts are set.
     $.ui.invalidate('ui.render')
     return next(e)
@@ -160,7 +179,8 @@ export const register: Register = on => {
     const shape = messageShape(e.props.text)
     if (shape === null) return next(e)
     drawnReplies.add(e.requestId)
-    const [facts, isOpen, marks, sectionsOpen, brief, settledReplies] = await Promise.all([
+    const [mode, facts, isOpen, marks, sectionsOpen, brief, settledReplies] = await Promise.all([
+      e.surface === 'desktop' || e.surface === 'vscode' ? readMode($) : Promise.resolve('auto' as const),
       read($, cardFacts),
       read($, memberOf(isMessageOpen, e)),
       read($, memberOf(qaMarks, e)),
@@ -181,7 +201,8 @@ export const register: Register = on => {
       brief,
       onToggle: () => void toggleMessage($, messageId),
       isSettled: settledReplies.includes(messageId),
-      ribbonWidth: e.surface === 'desktop' || e.surface === 'vscode' ? Math.max(240, Math.min(720, Math.floor((e.viewport?.columns ?? 100) * 7))) : null,
+      isRich: e.surface === 'desktop' || e.surface === 'vscode',
+      mode,
     }
     // The cockpit block feeds the cards; the person reads the message without it.
     const shown = withoutCockpitBlock(e.props.text)

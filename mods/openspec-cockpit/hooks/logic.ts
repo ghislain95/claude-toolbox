@@ -451,7 +451,7 @@ export function nextAction(input: {
       const group = snapshot.groups.find(candidate => candidate.done < candidate.total)
       return {
         title: group !== undefined ? `Continuer l'apply · groupe ${group.number}` : "Continuer l'apply",
-        detail: group !== undefined ? `${group.title} · ${group.done}/${group.total}` : `${change.done}/${change.total} tâches`,
+        detail: group !== undefined ? `${group.title} · ${group.done} sur ${group.total}` : `${change.done} tâches sur ${change.total}`,
         tone: 'neutral',
         actions: [{ key: 'apply', label: '/opsx:apply', kind: 'fill', value: '/opsx:apply' }],
       }

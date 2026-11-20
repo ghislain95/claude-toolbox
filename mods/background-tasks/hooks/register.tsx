@@ -87,6 +87,13 @@ export const register: Register = on => {
   context = undefined
   inFlight = undefined
 
+  // A change of theme redraws: a few native colours (tiles, chips) differ between light and dark.
+  on('config.set', async ($, e, next) => {
+    const result = await next(e)
+    if (e.key === 'theme') $.ui.invalidate('ui.render')
+    return result
+  })
+
   on('session.start', async ($, e, next) => {
     const [root, home] = await Promise.all([$.session.root(), $.env.get('HOME')])
     context = { root, home: home ?? '' }

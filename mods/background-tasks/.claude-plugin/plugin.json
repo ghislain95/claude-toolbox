@@ -1,6 +1,6 @@
 {
   "name": "background-tasks",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "A pane listing what runs in the background, in every project: the services Claude started (dev servers…), the workflow runs with their phases and agents, and this session's agents, each with model, tokens and time",
   "author": {
     "name": "ghislain95"
