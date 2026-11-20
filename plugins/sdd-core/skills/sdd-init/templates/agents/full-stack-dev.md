@@ -1,7 +1,7 @@
 ---
 name: full-stack-dev
 description: USE WHEN a small feature touches several modules in one coherent batch (e.g. 1 endpoint + 1 screen that consumes it, 1 shared type + its usage). DO NOT USE if more than 3 sub-modules of the same module are impacted, or for a multi-screen redesign — decompose via `architect`, then the modules' dev agents in parallel.
-tools: [Read, Edit, Write, Grep, Glob, Bash]
+tools: [Read, Edit, Write, Grep, Glob, Bash, Skill]
 model: {{AGENT_MODEL}}
 ---
 <!-- sdd:note: generate only if the multi-module option is on (>= 2 modules); remove this comment when generating -->
@@ -26,6 +26,12 @@ Code map ([`docs/GRAPHIFY.md`](../../docs/GRAPHIFY.md)), a **reading** tool
 modules. ⚠️ The graph does not cross network boundaries between modules. Then read the targeted
 files.
 <!-- sdd:endif -->
+
+## Skills — invoke them, do not paraphrase them
+- Before writing production code: `superpowers:test-driven-development` (red, green, refactor,
+  one delta scenario at a time).
+- Unexpected failure or bug: `superpowers:systematic-debugging` before any fix.
+- Before reporting "done": `superpowers:verification-before-completion`.
 
 ## Workflow
 <!-- sdd:fill: implementation order between modules observed in the project (e.g. contract producer first: schema/migration → logic → API, then shared types, then client and screen) -->

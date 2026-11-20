@@ -58,7 +58,7 @@ Python guardrail; vendored skills; a backlog file instead of a roadmap). Excerpt
 | §2 "Routage des rôles" (10 agents, `rendering-dev` > `frontend-dev`) | `CLAUDE.md` §8, `.claude/agents/` | merge | the project's agents and tie-break rule kept; the kit's description blocks and output formats added agent by agent |
 | §3 "Self-review" (`.claude/commands/review.md`) | `CLAUDE.md` §7 | keep | the project's own two-pass review command |
 | §4 "Graphify" | `CLAUDE.md` §10, `docs/GRAPHIFY.md` | keep | more precise than the template (hub value objects, `god-nodes` bias); the template's `--force` rule is already there |
-| §5 "Boîte à outils" | `CLAUDE.md` §11 | merge | `/passation` → `/handoff:passation`; adds `/sdd-core:review-harness`, `/local-qa:qa-prepare` |
+| §5 "Boîte à outils" | `CLAUDE.md` §11 | merge | `/passation` → `/handoff:handoff`; adds `/sdd-core:review-harness`, `/local-qa:qa-prepare` |
 | "Garde-fou" paragraph, `.claude/hooks/block-git-writes.sh` → `git_guardrails.py`, `test_git_guardrails.py` | `.claude/hooks/block-git-writes.{sh,pl,test.sh,conf}` | replace | one guardrail: the kit's already carries the Python one's cases (REST merge endpoint, branch tracking `main`), plus the merge route; `--force-with-lease`, allowed today → `ALLOW_FORCE_WITH_LEASE=1` |
 | `.claude/skills/` (passation, retro, domain-modeling, web-design-guidelines…, vendored copies) | plugins `handoff`, `sdd-core`, `sdd-ui` | replace | the plugins carry them; a copy drifts. `graphify` and the `openspec-*` skills stay (installed by their own tools) |
 | `.claude/commands/migrate.md`, `ticket.md` | — | keep | project-specific commands |

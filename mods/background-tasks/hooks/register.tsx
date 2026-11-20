@@ -104,7 +104,7 @@ export const register: Register = on => {
     $.clock.every(REFRESH_MS, () => void refresh($))
     // The tasks show at a glance: the pane opens by itself unless the person closed it. In an OpenSpec project
     // the cockpit shows them in its own pane (the desktop tabs two panes, it does not stack them).
-    const hasCockpit = (await $.fs.exists(`${root}/openspec`).catch(() => false)) || (await $.fs.exists(`${root}/.claude/passation`).catch(() => false))
+    const hasCockpit = (await $.fs.exists(`${root}/openspec`).catch(() => false)) || (await $.fs.exists(`${root}/.claude/handoff`).catch(() => false)) || (await $.fs.exists(`${root}/.claude/passation`).catch(() => false))
     if (!hasCockpit && ((await $.store.get('pane').catch(() => undefined)) ?? 'on') !== 'off') {
       $.clock.after(OPEN_DELAY_MS, () => void openPane($))
     }

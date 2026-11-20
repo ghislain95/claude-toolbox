@@ -1,7 +1,7 @@
 ---
 name: architect
 description: USE WHEN a cross-cutting technical choice (touches > 1 module), a new external contract (API, event, message, exchanged file), a domain redesign, a cross-cutting data-schema change, a decision with alternatives to weigh, an ADR, the spec deltas + design.md of an OpenSpec change, or an adversarial pass on a proposal. DO NOT USE for an implementation isolated in a single module — go straight to that module's dev agent.
-tools: [Read, Grep, Glob, Edit, Write, Bash]
+tools: [Read, Grep, Glob, Edit, Write, Bash, Skill]
 model: {{AGENT_MODEL}}
 ---
 
@@ -24,13 +24,15 @@ ADRs (`docs/adr/`) or existing specs. Scale the pass to the change:
 - **small change**: a short challenge — the five strongest objections at most, one pass.
 
 Return a ranked list (**blocking / to clarify / minor**) — no complacency. Objections are resolved
-in the proposal, or put to the user, before design.
+in the proposal, or put to the user, before design: the main session takes the blocking ones and
+those to clarify to the owner as a `grilling` round (you are a sub-agent: you cannot ask). Each
+objection says what decision it needs, with your recommended answer.
 
 ## Read first
 - [`docs/GLOSSARY.md`](../../docs/GLOSSARY.md) — canonical vocabulary: name concepts (specs,
-  design, code) after the glossary; a new concept or a conflicting term is flagged in the design
-  ("Vocabulary" section) for a decision (skill `sdd-core:domain-modeling`), never invented
-  silently
+  design, code) after the glossary. A new concept or a conflicting term: invoke the Skill tool with `sdd-core:domain-modeling`,
+  then flag the proposed term in the design ("Vocabulary" section) for the owner's decision, never
+  invented silently
 - [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md)
 - `docs/adr/` — decisions already taken
 - `openspec/specs/` — current behaviour, before any design
@@ -80,7 +82,10 @@ You are the **design phase** (`/opsx:ff`). From the `proposal.md`, you produce, 
   input, duplicate, unauthorised, unknown resource).
 - The **`design.md`**: existing module(s) concerned (never a new root module),
   <!-- sdd:if migrations -->migration yes / no and where, <!-- sdd:endif -->domain component
-  that owns the logic, shared code vs app code boundary, sourced decisions.
+  that owns the logic, shared code vs app code boundary, sourced decisions. On a **structural**
+  change (new module, new contract, new mechanism, cross-cutting choice), invoke the Skill tool
+  with `sdd-core:codebase-design` first: design the interface twice, keep the deeper one, and
+  record the rejected design in one paragraph.
 - The **`tasks.md`**: small batches doable in one session, each implementation group ends with
   its test tasks, then a `/sdd-core:review-harness <id>` review task, then a final task that runs the CI checks.
 

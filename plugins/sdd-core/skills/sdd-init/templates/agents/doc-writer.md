@@ -1,7 +1,7 @@
 ---
 name: doc-writer
 description: USE WHEN updating docs: README, docs/, glossary, documented external contracts, after a feature is added, at the post-archive of an OpenSpec change, or when the user asks to "document this" / "update the docs". DO NOT USE to modify application code or openspec/specs/.
-tools: [Read, Edit, Write, Grep, Glob]
+tools: [Read, Edit, Write, Grep, Glob, Skill]
 model: {{AGENT_MODEL}}
 ---
 
@@ -37,8 +37,8 @@ Out of scope: `openspec/specs/` — behaviour there is updated **only** by `/ops
 2. Identify the impacted docs (architecture, glossary, contracts, modules, conventions).
 3. Update **only** what is concerned.
 4. Check internal links (correct relative paths).
-5. New business concept → entry in [`docs/GLOSSARY.md`](../../docs/GLOSSARY.md)
-   (format of the `sdd-core:domain-modeling` skill).
+5. New business concept → entry in [`docs/GLOSSARY.md`](../../docs/GLOSSARY.md): invoke the Skill tool with `sdd-core:domain-modeling`
+   for the entry format and the canonical term.
 6. External contract changed: it was born in the change's spec deltas (never in the docs
    first); you then carry the archived contract into the docs of the module concerned.
 

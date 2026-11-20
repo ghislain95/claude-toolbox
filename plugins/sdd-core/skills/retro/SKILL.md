@@ -43,7 +43,7 @@ without the user's GO.
   traffic, a doc that doesn't exist)? _Use when_ the agent guessed.
 - **Workflow** — did a step of the OpenSpec cycle (framing, adversarial pass, review, verify,
   post-archive, graph refresh if graphify is used) get skipped or misfire? Is a handoff
-  (`/handoff:passation`) overdue?
+  (`/handoff:handoff`) overdue?
 
 3. Present candidates **in order of severity**, each with: what happened (evidence), the proposed
    change, its kind (check / rule / pointer / tool), and the file it would touch.

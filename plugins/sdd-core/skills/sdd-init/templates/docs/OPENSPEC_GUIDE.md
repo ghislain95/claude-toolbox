@@ -30,7 +30,8 @@ it touches, not the whole domain). No massive reverse-spec: it is expensive and 
 | I want to | Action |
 |---|---|
 | Implement an epic/ticket from the roadmap | `/opsx:new <change-id>` then the full cycle (§3) |
-| A feature not framed yet | `/opsx:new <change-id>` — `product-owner` frames it with you |
+| A feature not framed yet | `/opsx:new <change-id>` — the agent grills you on it (`grilling`), then `product-owner` writes the proposal |
+| Stress-test a plan or a design, in or out of a change | `/grilling:grill-me <plan>` |
 | Explore an idea without committing | `/opsx:explore` |
 | Fix a bug that contradicts a spec | `/opsx:new fix-<bug>` |
 | Trivial hotfix (< 30 min, specified behaviour intact) | Direct implementation on a `fix/…` branch, no change |
@@ -48,13 +49,16 @@ it touches, not the whole domain). No massive reverse-spec: it is expensive and 
 
 With the agent team (routing: [`CLAUDE.md`](../CLAUDE.md) §8, details: [`AGENTS.md`](../AGENTS.md)):
 
-1. **Framing** — `product-owner`: `proposal.md` (intent, scope, non-goals,
+1. **Framing** — the main session grills the owner (`grilling`: rounds of five questions at most,
+   each with its recommended answer; facts looked up, never asked) until the decisions the proposal
+   needs are settled; then `product-owner`, briefed with those decisions: `proposal.md` (intent, scope, non-goals,
    testable criteria), roadmap epic referenced, and `classification.yaml` next to it (§7): the
    intent and irreversible gates, open or closed, each with its evidence.
 1b. **Adversarial pass** — always, scaled: `architect` tries to break the proposal (a full
    attempt for a structural change — new module, new contract, migration, cross-cutting choice, new
    mechanism —, the five strongest objections for a small one), its classification included;
-   objections are resolved in the proposal, or put to the user, before the framing merge.
+   objections are resolved in the proposal, or put to the owner as a `grilling` round, before the
+   framing merge.
 1c. **Framing <!-- sdd:if github -->pull request<!-- sdd:endif --><!-- sdd:if !github -->merge<!-- sdd:endif -->** — branch `docs/<change-id>-framing`, carrying only the change
    folder (proposal, classification, `.openspec.yaml`)<!-- sdd:if github -->, opened as a pull request<!-- sdd:endif -->. **Its merge
    into `{{DEFAULT_BRANCH}}` by the owner is the approval**: the classification on
@@ -91,7 +95,7 @@ With the agent team (routing: [`CLAUDE.md`](../CLAUDE.md) §8, details: [`AGENTS
    by a human ([`CONTRIBUTING.md`](CONTRIBUTING.md) §2).
 <!-- sdd:endif -->
 
-**Context hygiene**: a fresh context per phase (`/clear`, or `/handoff:passation` then a
+**Context hygiene**: a fresh context per phase (`/clear`, or `/handoff:handoff` then a
 new session) — the artifacts carry the memory.
 
 ## 4. Writing rules for specs and deltas

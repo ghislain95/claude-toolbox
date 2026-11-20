@@ -1,7 +1,7 @@
 {
   "name": "handoff",
-  "version": "0.1.1",
-  "description": "/handoff:passation writes a handoff document to resume work in a fresh session without the dead ends of the current context (file in .claude/passation/, copied to the clipboard). Works in any project, with or without the spec-driven workflow.",
+  "version": "0.2.0",
+  "description": "/handoff:handoff writes a handoff document to resume work in a fresh session without the dead ends of the current context (file in .claude/handoff/, copied to the clipboard). Works in any project, with or without the spec-driven workflow.",
   "author": {
     "name": "ghislain95"
   },

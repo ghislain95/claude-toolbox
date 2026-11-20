@@ -571,7 +571,7 @@ export function keyFigures(text: string): Chip[] {
 
 /** The phrase that starts the next session from a handoff file. */
 export function handoffPhrase(text: string): string | null {
-  return /Lis\s+`?\.claude\/passation\/[^\s`]+`?[^\n`]*/.exec(text)?.[0]?.replace(/`/g, '') ?? null
+  return /(?:Lis|Read)\s+`?\.claude\/(?:handoff|passation)\/[^\s`]+`?[^\n`]*/.exec(text)?.[0]?.replace(/`/g, '') ?? null
 }
 
 export type Finding = { severity: 'blocking' | 'major' | 'minor'; file: string | null; line: number | null; problem: string; status: 'open' | 'fixed' | 'deferred' }

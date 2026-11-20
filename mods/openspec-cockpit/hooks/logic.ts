@@ -57,15 +57,15 @@ export function handoffTitle(markdown: string, file: string): string {
   return cleanMarkdown(
     heading
       .slice(2)
-      .replace(/^Passation\s*[—–-]\s*/i, '')
+      .replace(/^(?:Handoff|Passation)\s*[—–-]\s*/i, '')
       .replace(/\s*\(\d{4}-\d{2}-\d{2}[^)]*\)\s*$/, ''),
   )
 }
 
-/** The top-level items of the `## Prochaine étape` section, first line of each. */
+/** The top-level items of the `## Next step` (or `## Prochaine étape`) section, first line of each. */
 export function handoffNextSteps(markdown: string): string[] {
   const lines = markdown.split('\n')
-  const start = lines.findIndex(line => /^##\s+Prochaine/i.test(line))
+  const start = lines.findIndex(line => /^##\s+(?:Next step|Prochaine)/i.test(line))
   if (start === -1) return []
   const steps: string[] = []
   for (const line of lines.slice(start + 1)) {
@@ -78,8 +78,9 @@ export function handoffNextSteps(markdown: string): string[] {
   return steps
 }
 
-export function parseHandoff(file: string, markdown: string, writtenAt: number): HandoffSummary {
+export function parseHandoff(dir: string, file: string, markdown: string, writtenAt: number): HandoffSummary {
   return {
+    dir,
     file,
     title: handoffTitle(markdown, file),
     writtenAt,
@@ -87,8 +88,8 @@ export function parseHandoff(file: string, markdown: string, writtenAt: number):
   }
 }
 
-export function resumePrompt(file: string): string {
-  return `Lis .claude/passation/${file}, reformule-moi l'objectif et la prochaine étape, puis attends mon GO.`
+export function resumePrompt(handoff: { dir: string; file: string }): string {
+  return `Lis ${handoff.dir}/${handoff.file}, reformule-moi l'objectif et la prochaine étape, puis attends mon GO.`
 }
 
 export type TaskCount = { done: number; total: number }
@@ -325,7 +326,7 @@ export function summaryMarkdown(input: {
   const handoff = snapshot.handoff
   if (handoff !== null) {
     lines.push(
-      `- **Dernière passation** ${formatClock(handoff.writtenAt, offsetMinutes)} — ${handoff.title} (\`.claude/passation/${handoff.file}\`)`,
+      `- **Dernière passation** ${formatClock(handoff.writtenAt, offsetMinutes)} — ${handoff.title} (\`${handoff.dir}/${handoff.file}\`)`,
     )
     handoff.nextSteps.slice(0, 4).forEach((step, index) => lines.push(`  ${index + 1}. ${truncate(step, 140)}`))
   }

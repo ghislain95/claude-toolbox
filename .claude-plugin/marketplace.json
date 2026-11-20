@@ -10,7 +10,7 @@
     {
       "name": "sdd-core",
       "source": "./plugins/sdd-core",
-      "description": "/sdd-init (reverse-documents a project and installs the workflow), retro, domain-modeling, improve-codebase-architecture",
+      "description": "/sdd-init (reverse-documents a project and installs the workflow), review-harness, retro, domain-modeling, codebase-design, improve-codebase-architecture",
       "category": "workflow"
     },
     {
@@ -22,7 +22,13 @@
     {
       "name": "handoff",
       "source": "./plugins/handoff",
-      "description": "/handoff:passation: handoff document to resume work in a fresh session, in any project",
+      "description": "/handoff:handoff: handoff document to resume work in a fresh session, in any project",
+      "category": "skill"
+    },
+    {
+      "name": "grilling",
+      "source": "./plugins/grilling",
+      "description": "/grilling:grill-me and the grilling skill: the agent interviews you in rounds over a plan's decisions, with its recommended answer for each, before anything is built; in any project",
       "category": "skill"
     },
     {

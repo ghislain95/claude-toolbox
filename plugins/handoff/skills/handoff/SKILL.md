@@ -1,12 +1,12 @@
 ---
-name: passation
-description: Writes a handoff document to resume work in a fresh session (/clear or new conversation) without dragging along the dead ends of the current context. File in .claude/passation/ + copy to the clipboard when available.
+name: handoff
+description: Writes a handoff document to resume work in a fresh session (/clear or new conversation) without dragging along the dead ends of the current context. File in .claude/handoff/ + copy to the clipboard when available.
 argument-hint: "[goal of the next session]"
 disable-model-invocation: true
-allowed-tools: Write, Bash(mkdir -p .claude/passation), Bash(date *), Bash(command -v *), Bash(LC_ALL=en_US.UTF-8 pbcopy *), Bash(LC_ALL=en_US.UTF-8 pbpaste), Bash(LC_ALL=en_US.UTF-8 pbpaste *), Bash(wl-copy *), Bash(wl-paste *), Bash(xclip *), Bash(cmp *), Bash(echo OK), Bash(git status *), Bash(git log *), Bash(git branch *), Bash(openspec list), Bash(openspec list *)
+allowed-tools: Write, Bash(mkdir -p .claude/handoff), Bash(date *), Bash(command -v *), Bash(LC_ALL=en_US.UTF-8 pbcopy *), Bash(LC_ALL=en_US.UTF-8 pbpaste), Bash(LC_ALL=en_US.UTF-8 pbpaste *), Bash(wl-copy *), Bash(wl-paste *), Bash(xclip *), Bash(cmp *), Bash(echo OK), Bash(git status *), Bash(git log *), Bash(git branch *), Bash(openspec list), Bash(openspec list *)
 ---
 
-# Passation (handoff)
+# Handoff
 
 Why: `/compact` summarises the conversation, but keeps its shape. The dead ends, the wrong
 assumptions and the failed debugging stay in. A handoff starts again from scratch with only what
@@ -25,11 +25,11 @@ that goal (whatever doesn't serve it goes).
 
 ## 2. Write the file
 
-Path: `.claude/passation/YYYY-MM-DD-HHMM-<topic-kebab>.md` (gitignored folder; `mkdir -p` if
+Path: `.claude/handoff/YYYY-MM-DD-HHMM-<topic-kebab>.md` (gitignored folder; `mkdir -p` if
 missing). The local time (hours + minutes, no separator) tells apart several handoffs on the same
 day: read it with `date +%Y-%m-%d-%H%M`, never from memory. Prose in the language of the project's
 docs (`CLAUDE.md` §Language; English by default). Identifiers, paths and commands as they are.
-If `.claude/passation/` is not gitignored yet, tell the user (don't edit `.gitignore` yourself during
+If `.claude/handoff/` is not gitignored yet, tell the user (don't edit `.gitignore` yourself during
 a handoff).
 
 Fixed structure. An empty section is written "—"; it is not removed.
@@ -73,17 +73,9 @@ Fixed structure. An empty section is written "—"; it is not removed.
 
 ## Mandatory way of working
 - <The project's language rules, taken from `CLAUDE.md` §Language.>
-- Framing **with** the user: goal first, few questions, one concrete example each. Proposal
-  validated by them **before** `/opsx:ff`. Once framing is validated, take the change all the way
-  (back end, front end, tests, docs) **without asking for a GO between slices**; only stop for a
-  real decision or a design gap.
-- `code-reviewer` review of the uncommitted diff before `/opsx:verify`.
-- Git: per `docs/CONTRIBUTING.md` §2 and `CLAUDE.md` — `<type>/<change-id>` branch, never on the
-  protected branch, Conventional Commits with subject + body, scope = change id. Order: review →
-  `/opsx:verify` → implementation commit(s) → `/opsx:archive` + post-archive → archive commit → PR →
-  merge: by the agent only through the verified route (`merge-conditions` green with `gates: none`),
-  by the owner when a gate is open. The `block-git-writes.sh` hook enforces the mechanical part,
-  the merge route included (it checks `merge-conditions` on GitHub before letting the merge run).
+- <Where the project's process lives, by path, not restated: e.g. `CLAUDE.md` §3 (cycle) and §7
+  (git) in a project set up with `sdd-core`. Name the exact step to resume at.>
+- <Working-style rules the user gave during this session and that are written nowhere else.>
 - <Environment pitfalls found during the session (runtime version, environment variable,
   port…) — e.g. "the build tool needs a specific runtime version, the default shell has another one".>
 - If `graphify-out/` exists: refresh the graph (`graphify check-update .`) before relying on it.
@@ -114,6 +106,6 @@ Fixed structure. An empty section is written "—"; it is not removed.
      enough.
 2. Reply in 3 lines max: the file path, the clipboard status ("copied (verified)" or "not copied"),
    and the sentence to paste if the user prefers to point to the file:
-   `Read .claude/passation/<file>.md and pick up exactly where we left off.`
+   `Read .claude/handoff/<file>.md and pick up exactly where we left off.`
 
 Don't start any other work: the handoff closes the session.

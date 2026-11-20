@@ -1,5 +1,5 @@
 // Gathers the cockpit's snapshot from the repository: git, the OpenSpec folders, graphify-out and
-// .claude/passation. Read-only.
+// the handoff folders (.claude/handoff, .claude/passation). Read-only.
 
 import type { EngineInterface, FsEntry } from 'claude-code'
 
@@ -16,6 +16,8 @@ export type Context = {
 }
 
 const DAY = 24 * 60 * 60 * 1000
+/** Handoff folders, newest convention first. */
+const HANDOFF_DIRS = ['.claude/handoff', '.claude/passation']
 
 const GIT_CANDIDATES = ['git', '/opt/homebrew/bin/git', '/usr/local/bin/git', '/usr/bin/git']
 
@@ -162,18 +164,25 @@ async function backlogFiles($: EngineInterface, dir: string, depth: number): Pro
 }
 
 async function collectHandoffs($: EngineInterface, root: string) {
-  const dir = `${root}/.claude/passation`
-  const files = (await $.fs.list(dir).catch(() => []))
-    .filter(entry => entry.kind === 'file' && entry.name.endsWith('.md'))
-    .sort((a, b) => b.name.localeCompare(a.name))
+  // `.claude/handoff` since handoff 0.2.0; `.claude/passation` holds the files older versions wrote.
+  const listed = await Promise.all(
+    HANDOFF_DIRS.map(async dir =>
+      (await $.fs.list(`${root}/${dir}`).catch((): FsEntry[] => []))
+        .filter(entry => entry.kind === 'file' && entry.name.endsWith('.md'))
+        .map(entry => ({ dir, entry })),
+    ),
+  )
+  const files = listed
+    .flat()
+    .sort((a, b) => b.entry.name.localeCompare(a.entry.name))
     .slice(0, 5)
   const handoffs: HandoffSummary[] = []
   let decisions: Decision[] = []
-  for (const file of files) {
-    const text = await readText($, `${dir}/${file.name}`)
+  for (const { dir, entry } of files) {
+    const text = await readText($, `${root}/${dir}/${entry.name}`)
     if (text === undefined) continue
     if (handoffs.length === 0) decisions = handoffDecisions(text)
-    handoffs.push(parseHandoff(file.name, text, file.mtimeMs))
+    handoffs.push(parseHandoff(dir, entry.name, text, entry.mtimeMs))
   }
   return { handoffs, decisions }
 }

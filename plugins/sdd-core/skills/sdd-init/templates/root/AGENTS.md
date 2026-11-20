@@ -45,7 +45,8 @@ The workflow relies on **OpenSpec**: the change artifacts
 contract handed from one agent to the next.
 
 ```
-1. product-owner     ← /opsx:new: proposal.md (intent, scope, non-goals)
+0. main session      ← /opsx:new: grilling with the owner until the decisions are settled
+1. product-owner     ← proposal.md from those decisions (intent, scope, non-goals)
 1b. architect        ← adversarial pass on the proposal, if the change is structural
 2. architect         ← /opsx:ff: spec deltas + design.md + tasks
 3. <module>-dev      ← /opsx:apply: the module's tasks<!-- sdd:if multi-module --> (modules in parallel once the contract is stable)<!-- sdd:endif -->
@@ -109,6 +110,12 @@ Each agent implicitly inherits `CLAUDE.md` and the `CODING_RULES.md` of the modu
 
 - **No agent** invents a root module or package.
 - **No agent** commits a secret.
+- **Skills**: every agent has the `Skill` tool, and its definition names the skills it invokes and
+  when (e.g. `superpowers:test-driven-development` before production code,
+  `sdd-core:domain-modeling` on a new or conflicting term). It invokes them, it does not
+  paraphrase them from memory. A skill marked user-invoked (`/sdd-core:improve-codebase-architecture`,
+  `/sdd-core:retro`, `/handoff:handoff`…) is never run by an agent: the main session proposes it.
+  A sub-agent cannot talk to the user: interviews (`grilling`) happen in the main session.
 - **Git**: agents work on a branch following [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) §2; **no agent** commits or pushes on
   `{{DEFAULT_BRANCH}}`, force-pushes or rewrites history. The hook
   [`.claude/hooks/block-git-writes.sh`](.claude/hooks/block-git-writes.sh) enforces it, sub-agents
@@ -132,12 +139,13 @@ Each agent implicitly inherits `CLAUDE.md` and the `CODING_RULES.md` of the modu
    ---
    name: <name>
    description: USE WHEN <concrete triggers>. DO NOT USE <counter-indications>.
-   tools: [Read, Edit, Write, Bash, Grep, Glob]   # or a subset
+   tools: [Read, Edit, Write, Bash, Grep, Glob, Skill]   # or a subset; keep Skill
    model: {{AGENT_MODEL}}
    ---
    ```
-   An agent that must run read commands (graphify, git diff, tests) needs `Bash`.
-2. Describe the **mission**, the **mandatory reading**, the **hard rules**, the **workflow**, the **expected deliverables** and the **anti-patterns**.
+   An agent that must run read commands (graphify, git diff, tests) needs `Bash`. Without
+   `Skill`, an agent cannot invoke any skill, whatever its text says.
+2. Describe the **mission**, the **mandatory reading**, the **hard rules**, the **workflow**, the **skills it invokes and when** (one trigger each), the **expected deliverables** and the **anti-patterns**.
 3. Update the table in section 2 above and [`.claude/agents/README.md`](.claude/agents/README.md).
 4. Test it by invoking it on a small task.
 

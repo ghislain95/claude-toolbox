@@ -21,7 +21,7 @@ in the app's light or dark theme.
 - **French interface.** The cards, panes and band speak French.
 - **`openspec-cockpit` without the `sdd-core` workflow** works in any OpenSpec project: progress, cycle, next action,
   groups, handoff. Its « Décisions » section and its « review » gate read files the workflow writes
-  (`verification/owner-points.md`, `.claude/passation/`, a `code-reviewer` agent); without them they stay empty.
+  (`verification/owner-points.md`, `.claude/handoff/` (or the older `.claude/passation/`), a `code-reviewer` agent); without them they stay empty.
 - **`conversation-cards` adds a display contract to Claude's system prompt** (about 300 tokens): the shapes the
   cards read (questions as `### Q1 · …`, a closing « cockpit » block, commit messages in a `text` block). It also
   states this catalog's commit convention: subject `type(<change-id>): …` and no Co-Authored-By trailer. Turn it off

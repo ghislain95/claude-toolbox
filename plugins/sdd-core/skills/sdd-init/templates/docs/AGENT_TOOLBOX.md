@@ -7,6 +7,15 @@ Catalogue of the skills, hooks and checks adopted for AI-assisted development of
 
 The everyday "request → tool" table is in [`CLAUDE.md` §11](../CLAUDE.md).
 This document is the full catalogue. Every tool added or removed is recorded here, with its date.
+The catalog of every plugin and skill of claude-toolbox, installed here or not, with when each one
+fires: [`CATALOG.md`](https://github.com/ghislain95/claude-toolbox/blob/main/CATALOG.md).
+
+**How a skill fires** — three modes, written in the "When" column:
+- **auto**: the model invokes it on its own when the situation matches its description, in the main
+  session and in the agents (every agent has the `Skill` tool and its definition names its skills);
+- **proposed**: user-invoked (`/plugin:skill`); the agent proposes it at a defined moment
+  ([`CLAUDE.md` §3](../CLAUDE.md), "What the agent proposes") and the user starts it;
+- **manual**: user-invoked, nobody proposes it.
 
 ## 1. Principles
 
@@ -27,13 +36,15 @@ This document is the full catalogue. Every tool added or removed is recorded her
 | Tool | Source | What it is | When |
 |---|---|---|---|
 | OpenSpec (`/opsx:*`) | [Fission-AI/OpenSpec](https://github.com/Fission-AI/OpenSpec) (npm CLI `@fission-ai/openspec`) | Specs as source of truth + changes (proposal, deltas, design, tasks), archive that merges the deltas | Every non-trivial feature ([`OPENSPEC_GUIDE.md`](OPENSPEC_GUIDE.md)) |
-| superpowers | official plugin `claude-plugins-official` | `brainstorming`, `systematic-debugging`, `test-driven-development`, `verification-before-completion`… | Everywhere, except as a replacement for `/opsx:new` / `/opsx:ff` |
-| `/handoff:passation` | `handoff` (ideas: mattpocock `handoff`) | Handoff document: goal, state, decisions, tried and failed, verified vs assumed facts, key files, next step, working style. Written to `.claude/passation/` (gitignored) + clipboard | Before `/clear` or a new session, as soon as the context gets heavy or the topic changes |
+| superpowers | official plugin `claude-plugins-official` | `test-driven-development`, `systematic-debugging`, `verification-before-completion` (invoked by the dev agents and the main session), and process skills that compete with the cycle | auto; the skills it must not replace by phase are listed in [`CLAUDE.md` §3](../CLAUDE.md), "Skills by phase" |
+| `grilling` · `/grilling:grill-me` | `grilling` (mattpocock `grilling`, adapted) | Interview in rounds over a tree of decisions (five questions at most per round, each with its recommended answer, facts looked up rather than asked), ending with a "settled decisions" summary | auto at framing (before `product-owner`) and on the adversarial pass's open objections; `/grilling:grill-me <plan>` by hand — added 2026-11-20, previously rejected as a duplicate of `brainstorming`, which the framing does not use |
+| `/handoff:handoff` | `handoff` (ideas: mattpocock `handoff`; was `/handoff:passation` until 2026-11-20) | Handoff document: goal, state, decisions, tried and failed, verified vs assumed facts, key files, next step, working style. Written to `.claude/handoff/` (gitignored) + clipboard | proposed by the agent before a heavy phase, after a merge or an archive in a long session, as soon as the context gets heavy or the topic changes ([`CLAUDE.md` §3](../CLAUDE.md)) |
 | `/local-qa:qa-prepare` | `local-qa` | Local QA environment for a change on a machine shared with other projects and agents: inventory of containers and listening ports by project and worktree, compatible services reused, the rest started on free ports and recorded in `.claude/qa/started.json` (gitignored), a database of its own when the change carries a migration; the owner's brief (link, 3 to 6 gestures with expected results, before/after captures); `--cleanup` stops only what it started | Intent gate open, after the agent's own QA, before the owner's merge |
 | `/sdd-core:review-harness` | `sdd-core` | Full review of an implemented change: angles selected from the diff and `.sdd/harness.yaml` (`review-spec-conformance`, `review-conventions`, `review-bugs`, `review-tests`, `review-security`, `review-performance`, `review-interface`, `review-sourced-claims`), every BLOCKER/MAJOR verified by an agent that tries to refute it, three fix rounds at most, report in `review.md` | After `/opsx:apply`, before `/opsx:verify` |
-| `sdd-core:domain-modeling` | `sdd-core` (mattpocock, adapted) | Challenges terms against [`GLOSSARY.md`](GLOSSARY.md), proposes the canonical term, updates the glossary when the user decides | Framing, design; also read by `product-owner`, `architect`, `code-reviewer` |
-| `/sdd-core:improve-codebase-architecture` | `sdd-core` (mattpocock, adapted) | Hotspot audit (git<!-- sdd:if graphify --> + graphify<!-- sdd:endif -->) → report of "shallow" modules → framing of the chosen candidate → line in [`ROADMAP.md`](ROADMAP.md), section "Backlog — flagged work" | By hand, every ~5 changes, never in the middle of one |
-| `/sdd-core:retro` | `sdd-core` (mattpocock, adapted) | Retro on the agent's **environment**: navigation, automated checks, reviewer rules, steering files, tool economy | After a painful archive or a failed session |
+| `sdd-core:domain-modeling` | `sdd-core` (mattpocock, adapted) | Challenges terms against [`GLOSSARY.md`](GLOSSARY.md), proposes the canonical term, updates the glossary when the user decides | auto: framing, design, a new or conflicting term; invoked by `product-owner`, `architect`, `code-reviewer`, `doc-writer` and the dev agents |
+| `sdd-core:codebase-design` | `sdd-core` (mattpocock `codebase-design`, adapted) | Deep modules, seams, dependency categories, "design it twice" | auto: `architect` on a structural change during `/opsx:ff` |
+| `/sdd-core:improve-codebase-architecture` | `sdd-core` (mattpocock, adapted) | Hotspot audit (git<!-- sdd:if graphify --> + graphify<!-- sdd:endif -->) → report of "shallow" modules → framing of the chosen candidate → line in [`ROADMAP.md`](ROADMAP.md), section "Backlog — flagged work" | proposed at post-archive once five changes are archived after the last audit (date in [`ROADMAP.md`](ROADMAP.md)); never in the middle of a change |
+| `/sdd-core:retro` | `sdd-core` (mattpocock, adapted) | Retro on the agent's **environment**: navigation, automated checks, reviewer rules, steering files, tool economy | proposed in the final report when the harness needed two fix rounds or more, or a session failed twice the same way |
 <!-- sdd:if ui -->
 | `/sdd-ui:web-design-guidelines` | `sdd-ui` (vercel-labs/agent-skills) | Accessibility / UX lint (`aria`, focus, forms, reduced motion…) as `file:line`, rules fetched online at each run | Review of every UI change |
 | `sdd-ui:break-ui` | `sdd-ui` (emilkowalski/skills) | Worst-case data (long labels, huge counters, zero, missing fields) behind a DEV-only toggle; the user flips it and judges | Before shipping a data screen |
@@ -66,8 +77,8 @@ This document is the full catalogue. Every tool added or removed is recorded her
 - **Add → migrate → remove** (idea: mattpocock `to-tickets`) → `architect` and the `tasks` rule of
   `openspec/config.yaml`: a wide-radius change is split into three steps, each with a
   green build.
-- **Facts are the agent's job** (idea: mattpocock `grilling`) → `product-owner`: during
-  framing, never ask the user what the code, the specs or the graph can tell.
+- **Facts are the agent's job** (from mattpocock `grilling`, now adopted as a skill) →
+  `grilling` and `product-owner`: never ask the user what the code, the specs or the graph can tell.
 - **Adversarial pass** → `architect` and [`CLAUDE.md` §3](../CLAUDE.md): before `/opsx:ff` on a
   structural change, try to break the proposal (fragile assumptions, ignored
   alternatives, hidden costs, conflicts with an ADR).
@@ -92,7 +103,6 @@ This document is the full catalogue. Every tool added or removed is recorded her
 | Tool | Reason |
 |---|---|
 | Whole mattpocock / addyosmani plugins | Collisions with superpowers; mattpocock's `implement` **commits on its own**; Addy's cycle duplicates OpenSpec |
-| `grill-me` / `grilling` | Duplicates `brainstorming` and the `product-owner` framing |
 <!-- sdd:if ui -->
 | taste-skill | Its `SKILL.md` explicitly excludes "dashboards, data tables, multi-step product UI" |
 | `minimalist-ui` | Its bans (no Inter, no shadows, no Lucide icons) clash with most existing design systems |
@@ -109,7 +119,7 @@ This document is the full catalogue. Every tool added or removed is recorded her
 - **All agents run on `model: {{AGENT_MODEL}}`**, written explicitly in each
   `.claude/agents/*.md` rather than inherited: a session started on a cheaper model does not
   silently degrade an agent.
-- **`/compact` or `/handoff:passation`?** `/compact` keeps the shape of the conversation, dead ends
+- **`/compact` or `/handoff:handoff`?** `/compact` keeps the shape of the conversation, dead ends
   included. Prefer the handoff + a fresh session as soon as the topic changes or after a
   laborious debug.
 - **Messaging between sessions** (`SendMessage` / `ListAgents`, native): possible, but the handoff

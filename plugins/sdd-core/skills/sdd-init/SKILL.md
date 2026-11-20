@@ -65,12 +65,12 @@ This folder (the "base directory" given when the skill is invoked) contains:
    | gh | `gh auth status` | `brew install gh` | with option `github` |
    | uv + graphify | `graphify --version` | `uv tool install "graphifyy[sql]"` | with option `graphify` |
 
-4. Companion plugins: ask the user to run `/plugin` and confirm that `superpowers`, `handoff` and
-   `local-qa` are installed (the workflow relies on `systematic-debugging`,
-   `verification-before-completion`, `test-driven-development`, and the generated rules call
-   `/handoff:passation` and `/local-qa:qa-prepare`). If one is missing:
+4. Companion plugins: ask the user to run `/plugin` and confirm that `superpowers`, `handoff`,
+   `grilling` and `local-qa` are installed (the agents invoke `test-driven-development`,
+   `systematic-debugging` and `verification-before-completion`; framing invokes `grilling`; the
+   generated rules propose `/handoff:handoff` and `/local-qa:qa-prepare`). If one is missing:
    `/plugin install superpowers@claude-plugins-official`, `/plugin install handoff@claude-toolbox`,
-   `/plugin install local-qa@claude-toolbox`.
+   `/plugin install grilling@claude-toolbox`, `/plugin install local-qa@claude-toolbox`.
 5. Files that already exist (`CLAUDE.md`, `.claude/CLAUDE.md`, `AGENTS.md`, `.claude/agents/`,
    `.claude/hooks/`, `.claude/skills/`, `.claude/settings.json`, `openspec/`, `docs/`) → note them:
    they go through `references/adoption.md`. Rules, agents or hooks of the project's own and no kit

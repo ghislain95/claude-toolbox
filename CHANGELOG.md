@@ -5,6 +5,55 @@ users when the `version` in the plugin's `.claude-plugin/plugin.json` changes (s
 [`MAINTAINING.md`](MAINTAINING.md)). After updating the plugin, run `/sdd-core:sdd-init --refresh` in
 each installed project to bring its generated files up to date.
 
+## 0.5.0 — 2026-11-20
+
+Plugins: `sdd-core` 0.5.0, `handoff` 0.2.0, `grilling` 0.1.0 (new); mods `openspec-cockpit` 0.15.1,
+`conversation-cards` 0.2.1, `background-tasks` 0.2.1. Projects need `/sdd-core:sdd-init --refresh`:
+the agents, `CLAUDE.md`, `AGENTS.md`, the OpenSpec guide, the toolbox, the roadmap and the
+`.gitignore` additions change.
+
+### BREAKING
+- **New dependency `grilling`.** Updating `sdd-core` in place does not install it: run
+  `claude plugin install grilling@claude-toolbox` once, otherwise `sdd-core` refuses to load.
+- **`/handoff:passation` is now `/handoff:handoff`** and writes to `.claude/handoff/`. Files already
+  in `.claude/passation/` stay readable: the mods read both folders, and the generated `.gitignore`
+  keeps both.
+
+### Changed
+- **The agents can invoke skills.** Every generated agent had a `tools` list without `Skill`, so the
+  skills their definitions named never fired (transcripts of three projects: zero
+  `test-driven-development` calls, `domain-modeling` only from the main session). Each agent now has
+  `Skill` and names the skills it invokes and when: `superpowers:test-driven-development`,
+  `systematic-debugging` and `verification-before-completion` for the dev agents and `tester`;
+  `sdd-core:domain-modeling` for `product-owner`, `architect`, `code-reviewer`, `doc-writer`;
+  `sdd-core:codebase-design` for `architect` on a structural change; `sdd-ui:web-design-guidelines`
+  for `code-reviewer` on a UI diff. `module-dev` writes each scenario's failing test before the code.
+- **Framing grills the owner.** After `/opsx:new`, the main session runs `grilling` (rounds of five
+  questions at most, each with its recommended answer, facts looked up rather than asked) and briefs
+  `product-owner` with the settled decisions; `product-owner` no longer interviews (a sub-agent
+  cannot) and returns what is still open. The adversarial pass's open objections go back to the
+  owner as a grilling round. The working-style option's limit moves from three questions per round
+  to five.
+- **Skills by phase.** The generated `CLAUDE.md` names, for each phase, the skills to use and the
+  superpowers process skills that must not replace them (`brainstorming`, `writing-plans`,
+  `executing-plans`, `subagent-driven-development`, `requesting-code-review`,
+  `finishing-a-development-branch`).
+- **What the agent proposes, unasked.** User-invoked skills stay the user's, but the main session
+  proposes them at set moments: `/handoff:handoff` before a heavy phase, after a merge in a long
+  session or when the context gets heavy (no longer only in the working-style option);
+  `/sdd-core:improve-codebase-architecture` once five changes are archived after the
+  `Last architecture audit:` date the audit now writes in `docs/ROADMAP.md`; `/sdd-core:retro` after a
+  review that needed two fix rounds or more.
+- **`sdd-core:codebase-design`**, split out of `improve-codebase-architecture`: deep modules, seams,
+  dependency categories and "design it twice", now usable while designing a change.
+  `improve-codebase-architecture` grills the owner on the candidate it frames.
+- `review-interface` invokes the `sdd-ui` skills instead of guessing their path in the plugin cache.
+- The handoff template no longer carries its own, outdated copy of the cycle: it points to the
+  project's `CLAUDE.md`.
+- **`CATALOG.md`**: every plugin and skill, its mode (auto, proposed, manual) and when it fires, with
+  a prompt that asks an agent which plugins to install for a project. `AGENT_TOOLBOX.md` adopts
+  `grilling` (it was listed as rejected) and `codebase-design`, and gives each tool its mode.
+
 ## 0.4.0 — 2026-11-14
 
 Plugins: `sdd-core` 0.4.0, `handoff` 0.1.1, `local-qa` 0.1.0 (new).
