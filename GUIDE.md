@@ -193,6 +193,7 @@ because…").
 |---|---|
 | Long session, change of topic, polluted context, before a heavy phase | `/handoff:handoff [next goal]` (the session proposes it), then `/clear` — preferred over `/compact` |
 | A plan to challenge, in or out of a change | `/grilling:grill-me <plan>` |
+| An epic or a request bigger than one change, before framing it (with the optional `wayfinder` plugin) | `/wayfinder:wayfinder <epic>` (the session proposes it): a map of decision tickets, one per session, that ends in the changes to frame with `/opsx:new` |
 | Fuzzy or disputed domain term | the `domain-modeling` skill updates `docs/GLOSSARY.md` (auto) |
 | Five changes archived since the last audit, never in the middle of one | `/sdd-core:improve-codebase-architecture` (the session proposes it) |
 | Painful review, failed session | `/sdd-core:retro` (the session proposes it; improves the agent's environment, not the code) |

@@ -15,6 +15,7 @@ claude plugin marketplace add ghislain95/claude-toolbox
 | `sdd-ui` | skill | Optional UI review and polish skills |
 | `handoff` | skill | `/handoff:handoff`, a handoff document to resume in a fresh session |
 | `grilling` | skill | `grilling` and `/grilling:grill-me`: the agent interviews you on a plan's decisions before anything is built |
+| `wayfinder` | skill | `/wayfinder:wayfinder`: plan an effort bigger than one session as a map of decision tickets, one per session |
 | `local-qa` | skill | `/local-qa:qa-prepare`, a local QA environment for a change that disturbs no other project, and the QA brief |
 | `openspec-cockpit`, `conversation-cards`, `session-hud`, `background-tasks` | mod | Desktop app only, see [`mods/README.md`](mods/README.md) |
 
@@ -29,6 +30,7 @@ Every plugin installs on its own. After `claude plugin marketplace add ghislain9
 | An OpenSpec dashboard, without this workflow | `openspec-cockpit` (and the mods above if you like) | Shows in projects that have `openspec/` |
 | A handoff document to resume in a fresh session | `handoff` | Any project |
 | To be grilled on a plan or a design before building it | `grilling` | Any project |
+| To plan an effort bigger than one change (an epic, a migration) before building any of it | `wayfinder` | Any project; brings `grilling`. In an `sdd-core` project it ends in the changes to frame with `/opsx:new` |
 | A local QA environment for a change | `local-qa` | Any project |
 | UI review and polish skills | `sdd-ui` | Any project |
 
@@ -120,6 +122,7 @@ breakdown per plugin).
 | **`sdd-core`** | `/sdd-core:sdd-init` (reverse-documentation + workflow install, `--refresh` to update), `/sdd-core:review-harness` (full review of a change, with its eight `review-*` angles), `/sdd-core:retro`, `sdd-core:domain-modeling`, `sdd-core:codebase-design`, `/sdd-core:improve-codebase-architecture`, and the templates (agents, `CLAUDE.md`, OpenSpec rules, git hook, CI). Depends on `superpowers`, `handoff`, `grilling` and `local-qa` |
 | **`handoff`** | `/handoff:handoff` — handoff document to resume in a fresh session; usable in any project, installed with `sdd-core` |
 | **`grilling`** | `grilling` (auto) and `/grilling:grill-me` — interview in rounds over a plan's decisions, each with its recommended answer, before building; usable in any project, installed with `sdd-core` |
+| **`wayfinder`** (optional) | `/wayfinder:wayfinder` — charts an effort too big for one session as a map of decision tickets (GitHub issues with sub-issues and blocking, or `docs/wayfinder/`), then resolves one ticket per session; in an `sdd-core` project the map ends in a list of changes ready for `/opsx:new`. Depends on `grilling` |
 | **`local-qa`** | `/local-qa:qa-prepare` — local QA environment for a change on a machine shared with other projects and agents (inventory, reuse of compatible services, the rest on free ports, isolated database when the change migrates), the owner's QA brief, and `--cleanup` of exactly what it started; usable in any project, installed with `sdd-core` |
 | **`sdd-ui`** (optional) | `web-design-guidelines`, `break-ui`, `emil-design-eng`, `animate`, `review-animations`, `improve-animations` |
 | **Desktop mods** (optional, desktop app only) | `openspec-cockpit`, `conversation-cards`, `session-hud`, `background-tasks` — in [`mods/`](mods/README.md) |

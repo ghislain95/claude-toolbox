@@ -12,6 +12,7 @@ How to publish a new version, and what users experience.
    claude plugin validate plugins/sdd-ui
    claude plugin validate plugins/handoff
    claude plugin validate plugins/grilling
+   claude plugin validate plugins/wayfinder
    claude plugin validate plugins/local-qa
    bash plugins/sdd-core/skills/sdd-init/templates/claude/hooks/block-git-writes.test.sh
    bash plugins/sdd-core/hooks/check-kit-version.test.sh

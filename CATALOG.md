@@ -43,6 +43,7 @@ What fires at each step of the cycle, once a project is set up:
 
 | Step | Main session | Agents |
 |---|---|---|
+| Before framing, an effort bigger than one change | `/wayfinder:wayfinder` proposed (plugin `wayfinder`, optional): a map of decision tickets that ends in the changes to frame | research sub-agents for the tickets that wait on an outside fact |
 | Framing (`/opsx:new`) | `grilling` with you until the decisions are settled; `domain-modeling` on a new or disputed term | `product-owner` writes the proposal from the settled decisions |
 | Adversarial pass | a `grilling` round on the open objections | `architect` tries to break the proposal |
 | Design (`/opsx:ff`) | — | `architect`, with `codebase-design` on a structural change |
@@ -80,6 +81,14 @@ Depends on `superpowers` (official marketplace), `handoff`, `grilling`, `local-q
 | `/grilling:grill-me` | manual | Starts a grilling session on what you describe | When you want to be challenged |
 
 Works in any project. From `mattpocock/skills` (MIT), adapted.
+
+### `wayfinder` — plan an effort bigger than one session
+
+| Skill | Mode | What it does | When |
+|---|---|---|---|
+| `/wayfinder:wayfinder <idea \| map [ticket]>` | proposed | Charts the effort as a map of decision tickets (grilling, research, prototype, task) with a destination, the decisions so far, the fog not yet specified and what is out of scope; then resolves one ticket per session, grilling tickets through `grilling`, research tickets through a sub-agent with web access, prototypes as throwaway artifacts or branches never merged. Tracker: GitHub issues (labels `wayfinder:*`, native sub-issues and blocking) when the repo has a GitHub remote, otherwise `docs/wayfinder/`. In an `sdd-core` project the destination is a list of changes ready for `/opsx:new`, each with its settled decisions; it never writes OpenSpec artifacts | A roadmap epic or a request that clearly spans more than one change, before framing any of them. Outside `sdd-core`, when your own `CLAUDE.md` says so, or by hand |
+
+Works in any project; depends on `grilling`. From `mattpocock/skills` (MIT), adapted.
 
 ### `handoff` — resume in a fresh session
 
@@ -122,8 +131,3 @@ contract), `session-hud` (session band), `background-tasks` (background pane). D
 | `frontend-design` | `claude-plugins-official` | Building a UI from scratch (optional) |
 | graphify | `graphifyy` (uv) | Queryable code map, for large codebases (optional) |
 | caveman | `JuliusBrussee/caveman` | Compressed replies (optional, per developer) |
-
-## Coming next
-
-- `wayfinder` (from `mattpocock/skills`): planning an effort larger than one change as a map of
-  decision tickets on the issue tracker, before framing the changes it yields.
