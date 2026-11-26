@@ -13,9 +13,10 @@ fires: [`CATALOG.md`](https://github.com/ghislain95/claude-toolbox/blob/main/CAT
 **How a skill fires** — three modes, written in the "When" column:
 - **auto**: the model invokes it on its own when the situation matches its description, in the main
   session and in the agents (every agent has the `Skill` tool and its definition names its skills);
-- **proposed**: user-invoked (`/plugin:skill`); the agent proposes it at a defined moment
-  ([`CLAUDE.md` §3](../CLAUDE.md), "What the agent proposes") and the user starts it;
-- **manual**: user-invoked, nobody proposes it.
+- **proposed**: never started on the agent's own initiative; the agent proposes it at a defined
+  moment ([`CLAUDE.md` §3](../CLAUDE.md), "What the agent proposes") and runs it as soon as the user
+  asks or accepts — or the user types `/plugin:skill`;
+- **manual**: only the user starts it, by typing `/plugin:skill` (`disable-model-invocation`).
 
 ## 1. Principles
 

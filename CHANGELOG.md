@@ -5,6 +5,21 @@ users when the `version` in the plugin's `.claude-plugin/plugin.json` changes (s
 [`MAINTAINING.md`](MAINTAINING.md)). After updating the plugin, run `/sdd-core:sdd-init --refresh` in
 each installed project to bring its generated files up to date.
 
+## 0.7.0 — 2026-11-26
+
+Plugins: `sdd-core` 0.7.0, `handoff` 0.3.0, `wayfinder` 0.2.0. Projects need `/sdd-core:sdd-init --refresh`
+(`CLAUDE.md` §3, `AGENTS.md`, the agents' README and the toolbox change).
+
+### Fixed
+- **The proposed skills could not run when the owner asked for them.** `/handoff:handoff`,
+  `/sdd-core:retro`, `/sdd-core:improve-codebase-architecture` and `/wayfinder:wayfinder` carried
+  `disable-model-invocation`, so an agent answering "handoff first" could only tell the owner to type
+  the command. They are now model-invocable, with descriptions that limit them to an explicit request
+  or an accepted proposal, and the generated `CLAUDE.md` says the main session runs them as soon as
+  the owner asks or accepts; it still never starts one on its own initiative, and a sub-agent never
+  runs them. `/sdd-core:sdd-init`, `/grilling:grill-me` and `/sdd-ui:review-animations` stay
+  user-typed only.
+
 ## 0.6.0 — 2026-11-20
 
 Plugins: `sdd-core` 0.6.0, `wayfinder` 0.1.0 (new, optional). Projects need

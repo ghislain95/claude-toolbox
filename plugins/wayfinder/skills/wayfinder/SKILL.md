@@ -1,8 +1,7 @@
 ---
 name: wayfinder
-description: Plan an effort too big for one session (several changes, an epic, a migration) as a shared map of decision tickets, on GitHub issues or in docs/wayfinder/, and resolve them one per session until the way to the destination is clear. Charts a new map from a loose idea, or works the next ticket of an existing one.
+description: Plan an effort too big for one session (several changes, an epic, a migration) as a shared map of decision tickets, on GitHub issues or in docs/wayfinder/, and resolve them one per session until the way to the destination is clear. Charts a new map from a loose idea, or works the next ticket of an existing one. Run it only when the user asks for it or accepts it when you proposed it, never on your own initiative.
 argument-hint: "[a loose idea to chart | a map (issue number, URL or docs/wayfinder/<map>) [ticket]]"
-disable-model-invocation: true
 ---
 
 # Wayfinder

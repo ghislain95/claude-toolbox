@@ -19,8 +19,8 @@ The goal is that you never have to remember a skill. Each one has one of three m
 | Mode | Who starts it | Examples |
 |---|---|---|
 | **auto** | The model, on its own, when the situation matches the skill's description. In a project set up with `sdd-core`, the agents too: each agent has the `Skill` tool and its definition names the skills it invokes and when | `grilling` at framing, `superpowers:test-driven-development` before production code, `sdd-core:domain-modeling` on a new term |
-| **proposed** | You, after the agent proposes it in one line at a defined moment. These skills cost money or context, so they never start on their own | `/handoff:handoff` before a heavy phase, `/sdd-core:improve-codebase-architecture` after five archived changes |
-| **manual** | You, when you want it | `/sdd-core:sdd-init`, `/grilling:grill-me` |
+| **proposed** | The agent, once you ask or accept: it proposes the skill in one line at a defined moment and runs it as soon as you say yes ("handoff first" is enough). These skills cost money or context, so they never start on the agent's own initiative | `/handoff:handoff` before a heavy phase, `/sdd-core:improve-codebase-architecture` after five archived changes |
+| **manual** | You, by typing the command; the agent cannot start it | `/sdd-core:sdd-init`, `/grilling:grill-me` |
 
 The moments at which skills are proposed are written in the `CLAUDE.md` that `sdd-init` generates
 (§3, "What the agent proposes"). Outside an `sdd-core` project, a proposed skill is only proposed if

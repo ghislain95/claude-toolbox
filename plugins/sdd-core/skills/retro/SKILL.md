@@ -1,8 +1,7 @@
 ---
 name: retro
-description: Retrospective on a coding session (the current one by default) — suggests improvements to the agent ENVIRONMENT (navigation, automated checks, reviewer rules, steering files, tool economy) so future runs go better. User-invoked; typically after an OpenSpec archive or a painful session.
+description: Retrospective on a coding session (the current one by default) — suggests improvements to the agent ENVIRONMENT (navigation, automated checks, reviewer rules, steering files, tool economy) so future runs go better. Run it only when the user asks for a retro or accepts one you proposed (typically after an OpenSpec archive or a painful session), never on your own initiative.
 argument-hint: "[session or change to review]"
-disable-model-invocation: true
 ---
 
 # Retro
