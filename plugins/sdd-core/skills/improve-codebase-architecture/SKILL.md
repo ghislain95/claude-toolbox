@@ -1,8 +1,7 @@
 ---
 name: improve-codebase-architecture
-description: Periodic architecture audit — scan the codebase's hot spots for deepening opportunities (shallow modules, leaking seams, untestable interfaces), present them as a visual HTML report, then frame the one the user picks. User-invoked, run every few changes, never mid-change.
+description: Periodic architecture audit — scan the codebase's hot spots for deepening opportunities (shallow modules, leaking seams, untestable interfaces), present them as a visual HTML report, then frame the one the user picks. Run it only when the user asks for an architecture audit or accepts one you proposed (every few changes), never on your own initiative and never mid-change.
 argument-hint: "[module, subsystem or pain point to focus on]"
-disable-model-invocation: true
 ---
 
 # Improve Codebase Architecture

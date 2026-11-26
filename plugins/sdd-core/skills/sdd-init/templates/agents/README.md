@@ -51,8 +51,9 @@ agent fits or the task is trivial (quick read, factual question).
   (`openspec/changes/<id>/`, `docs/adr/`; `proposal.md`); their `Bash` is for reading.
 - `code-reviewer` has no `Edit`: it reports, it does not fix.
 - Every agent has `Skill`: its definition names the skills it invokes and when. Without `Skill` in
-  `tools`, an agent cannot invoke a skill at all, whatever its text says. User-invoked skills
-  (`disable-model-invocation`) stay the user's: an agent proposes them, it never runs them.
+  `tools`, an agent cannot invoke a skill at all, whatever its text says. The costly skills
+  (handoff, retro, architecture audit, wayfinder) are the main session's: it proposes them and runs
+  them once the owner asks; a sub-agent never runs them.
 
 ## Adding an agent
 1. Create `<name>.md`:

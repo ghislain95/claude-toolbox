@@ -177,8 +177,8 @@ merges.)
 
 You can just say "I want to be able to export invoices as CSV": the session grills you on what it
 needs to know, routes to `product-owner` and starts the cycle. You don't have to call skills: the
-agents invoke theirs, and the session proposes the user-invoked ones (handoff, architecture audit,
-retro, local QA) at the right moment — the full list is in [`CATALOG.md`](CATALOG.md). It always announces the chosen agent ("Routing → `architect`
+agents invoke theirs, and the session proposes the costly ones (handoff, architecture audit,
+retro, local QA) at the right moment and runs them as soon as you say yes — the full list is in [`CATALOG.md`](CATALOG.md). It always announces the chosen agent ("Routing → `architect`
 because…").
 
 ### A bug

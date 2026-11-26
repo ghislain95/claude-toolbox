@@ -113,8 +113,10 @@ Each agent implicitly inherits `CLAUDE.md` and the `CODING_RULES.md` of the modu
 - **Skills**: every agent has the `Skill` tool, and its definition names the skills it invokes and
   when (e.g. `superpowers:test-driven-development` before production code,
   `sdd-core:domain-modeling` on a new or conflicting term). It invokes them, it does not
-  paraphrase them from memory. A skill marked user-invoked (`/sdd-core:improve-codebase-architecture`,
-  `/sdd-core:retro`, `/handoff:handoff`…) is never run by an agent: the main session proposes it.
+  paraphrase them from memory. The costly skills (`/handoff:handoff`, `/sdd-core:retro`,
+  `/sdd-core:improve-codebase-architecture`, `/wayfinder:wayfinder`) never start on an agent's own
+  initiative: the main session proposes them, and runs them once the owner asks or accepts
+  ([`CLAUDE.md` §3](CLAUDE.md)); a sub-agent never runs them.
   A sub-agent cannot talk to the user: interviews (`grilling`) happen in the main session.
 - **Git**: agents work on a branch following [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) §2; **no agent** commits or pushes on
   `{{DEFAULT_BRANCH}}`, force-pushes or rewrites history. The hook

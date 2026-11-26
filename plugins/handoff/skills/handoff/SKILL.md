@@ -1,8 +1,7 @@
 ---
 name: handoff
-description: Writes a handoff document to resume work in a fresh session (/clear or new conversation) without dragging along the dead ends of the current context. File in .claude/handoff/ + copy to the clipboard when available.
+description: Writes a handoff document to resume work in a fresh session (/clear or new conversation) without dragging along the dead ends of the current context. File in .claude/handoff/ + copy to the clipboard when available. Run it only when the user asks for a handoff — in their own words ("handoff first", "write a handoff") or by accepting one you proposed — never on your own initiative.
 argument-hint: "[goal of the next session]"
-disable-model-invocation: true
 allowed-tools: Write, Bash(mkdir -p .claude/handoff), Bash(date *), Bash(command -v *), Bash(LC_ALL=en_US.UTF-8 pbcopy *), Bash(LC_ALL=en_US.UTF-8 pbpaste), Bash(LC_ALL=en_US.UTF-8 pbpaste *), Bash(wl-copy *), Bash(wl-paste *), Bash(xclip *), Bash(cmp *), Bash(echo OK), Bash(git status *), Bash(git log *), Bash(git branch *), Bash(openspec list), Bash(openspec list *)
 ---
 
